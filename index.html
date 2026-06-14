@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>black-math</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script>
+window.MathJax = {
+  tex: { inlineMath: [], displayMath: [] },
+  startup: { typeset: false },
+  options: { skipHtmlTags: ['script','noscript','style','textarea','pre'] }
+};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@200&family=Space+Mono&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --paper: #f5f3ee;
+  --ink: #111;
+  --dim: #aaa;
+  --rule: #e0ddd8;
+  --ks: 1em;
+}
+
+html, body { height: 100vh; overflow: hidden; background: var(--paper); color: var(--ink); }
+body { display: flex; flex-direction: column; }
+
+/* ---- header ---- */
+header {
+  flex: 0 0 auto; height: 36px;
+  border-bottom: 1px solid var(--rule);
+  display: flex; align-items: center;
+  padding: 0 1.5rem; gap: 1.2rem;
+}
+.h-title { font-family: 'Space Mono', monospace; font-size: 0.62rem; letter-spacing: 0.18em; color: var(--ink); white-space: nowrap; }
+.h-sym   { font-family: 'Noto Serif JP', serif; font-size: 0.85rem; color: var(--dim); letter-spacing: 0.06em; user-select: none; overflow: hidden; white-space: nowrap; }
+.h-btns  { margin-left: auto; display: flex; gap: 1.1rem; align-items: center; flex-shrink: 0; }
+
+/* ---- modes bar ---- */
+.modes {
+  flex: 0 0 auto; height: 26px;
+  border-bottom: 1px solid var(--rule);
+  display: flex; align-items: center;
+  padding: 0 1.5rem; gap: 1.4rem;
+}
+.modes-sep { width: 1px; height: 12px; background: var(--rule); }
+
+/* ---- buttons (shared) ---- */
+.btn, .mbtn {
+  font-family: 'Space Mono', monospace; font-size: 0.7rem;
+  color: var(--dim); background: none; border: none;
+  cursor: pointer; padding: 0; line-height: 1;
+  transition: color 0.1s; user-select: none;
+}
+.btn:hover, .mbtn:hover { color: var(--ink); }
+.mbtn.on { color: var(--ink); border-bottom: 1px solid var(--ink); padding-bottom: 1px; }
+
+.mval {
+  font-family: 'Space Mono', monospace; font-size: 0.55rem;
+  color: var(--dim); letter-spacing: 0.05em; cursor: default;
+}
+
+.algo-sel {
+  font-family: 'Space Mono', monospace; font-size: 0.55rem;
+  color: var(--dim); background: transparent; border: 1px solid var(--rule);
+  padding: 2px 4px; cursor: pointer; outline: none;
+  letter-spacing: 0.05em; text-transform: lowercase;
+}
+.algo-sel:hover { color: var(--ink); border-color: var(--ink); }
+.algo-sel option { background: var(--paper); color: var(--ink); }
+
+.seed-badge {
+  font-family: 'Space Mono', monospace; font-size: 0.55rem;
+  color: var(--dim); letter-spacing: 0.08em;
+  border: 1px solid var(--rule);
+  padding: 2px 5px; cursor: pointer;
+  user-select: none;
+  transition: color 0.1s, border-color 0.1s;
+}
+.seed-badge:hover { color: var(--ink); border-color: var(--ink); }
+.seed-badge.flash { color: var(--ink); border-color: var(--ink); }
+
+/* font size slider */
+#font-sz {
+  -webkit-appearance: none; appearance: none;
+  width: 52px; height: 1px;
+  background: var(--rule); outline: none; cursor: pointer; border: none;
+}
+#font-sz::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 7px; height: 7px;
+  background: var(--dim); border-radius: 50%;
+}
+#font-sz:hover::-webkit-slider-thumb { background: var(--ink); }
+
+.status { font-family: 'Space Mono', monospace; font-size: 0.55rem; color: var(--dim); letter-spacing: 0.08em; min-width: 3.5rem; text-align: right; }
+
+/* ---- layout ---- */
+main { flex: 1 1 0; display: grid; grid-template-columns: 1fr 1px 1fr; min-height: 0; }
+.pane { min-height: 0; display: flex; flex-direction: column; padding: 1.2rem 1.5rem; overflow: hidden; }
+.divider { background: var(--rule); }
+
+#editor {
+  flex: 1 1 0; min-height: 0; border: none; outline: none; resize: none;
+  background: transparent; font-family: 'Space Mono', monospace;
+  font-size: 0.72rem; line-height: 1.9; color: var(--ink); caret-color: var(--ink);
+  overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--rule) transparent;
+}
+#editor::placeholder { color: var(--dim); }
+#editor::-webkit-scrollbar { width: 2px; }
+#editor::-webkit-scrollbar-thumb { background: var(--rule); }
+
+#preview {
+  flex: 1 1 0; min-height: 0; overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: var(--rule) transparent;
+  transition: background 0.2s, transform 0.25s;
+  transform: rotate(var(--rot,0deg)) scaleX(var(--sx,1)) scaleY(var(--sy,1));
+  transform-origin: center center;
+}
+#preview::-webkit-scrollbar { width: 2px; }
+#preview::-webkit-scrollbar-thumb { background: var(--rule); }
+
+.block {
+  padding: 1.4rem 0; border-bottom: 1px solid var(--rule);
+  text-align: center; overflow-x: visible;
+  transition: opacity 0.2s, background 0.2s;
+}
+.block:last-child { border-bottom: none; }
+.katex-display { margin: 0 !important; }
+.katex { font-size: var(--ks) !important; }
+.block svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+
+.err { font-family: 'Space Mono', monospace; font-size: 0.6rem; color: #a03020; }
+@keyframes blink { 0%,100%{opacity:0.3} 50%{opacity:1} }
+.pending { animation: blink 1.2s ease-in-out infinite; }
+
+/* ---- MODE: invert ---- */
+body.invert { --paper: #111; --ink: #eee; --dim: #444; --rule: #222; }
+body.invert .katex { filter: invert(1) !important; }
+body.invert .block svg { filter: invert(1) !important; }
+body.invert .pane-preview { background: #111; }
+
+/* ---- MODE: columns ---- */
+#preview.cols-2 { columns: 2; column-gap: 0; }
+#preview.cols-3 { columns: 3; column-gap: 0; }
+#preview.cols-2 .block,
+#preview.cols-3 .block { break-inside: avoid; }
+
+/* ---- MODE: bleed ---- */
+#preview.bleed { position: relative; }
+#preview.bleed .block {
+  position: absolute; width: 100%; top: 1.5rem; left: 0;
+  border: none; opacity: 0.18; mix-blend-mode: multiply;
+}
+body.invert #preview.bleed .block { mix-blend-mode: screen; }
+
+/* ---- MODE: poster ---- */
+body.poster-mode #preview .block { display: none; }
+body.poster-mode #preview .block.poster-target {
+  display: flex; align-items: center; justify-content: center;
+  min-height: calc(100vh - 90px);
+  border: none;
+}
+body.poster-mode #preview .block.poster-target .katex { font-size: calc(var(--ks) * 2.8) !important; }
+body.poster-mode #preview .block.poster-target svg { transform: scale(2.8); transform-origin: center; }
+
+/* ---- MODE: tile (applied via JS grid wrapping) ---- */
+.tile-grid { display: grid; gap: 0; }
+.tile-cell { overflow: hidden; display: flex; align-items: center; justify-content: center; padding: 0.3rem; }
+.tile-cell .katex-display { margin: 0 !important; }
+
+/* ---- fullscreen ---- */
+body.fs main { grid-template-columns: 0 0 1fr; }
+body.fs .pane-edit, body.fs .divider { display: none; }
+body.fs .pane-preview { padding: 2.5rem 6rem; }
+body.fs .block { padding: 2rem 0; }
+
+/* ---- print ---- */
+@page { size: A4; margin: 1.5cm; }
+@media print {
+  header, .modes, .pane-edit, .divider { display: none !important; }
+  html, body { height: auto !important; overflow: visible !important; }
+  body.invert { background: #000 !important; }
+  main { display: block !important; height: auto !important; overflow: visible !important; }
+  /* lock the print pane to the printable A4 width so what's on screen matches paper.
+     adjust --ks (font slider) on screen to taste — print uses the same value. */
+  .pane-preview { display: block !important; overflow: visible !important; height: auto !important; padding: 0 !important; }
+  #preview { overflow: visible !important; height: auto !important; columns: unset !important;
+    width: 18cm !important; max-width: 18cm !important; margin: 0 auto !important;
+    transform: rotate(var(--rot,0deg)) scaleX(var(--sx,1)) scaleY(var(--sy,1)) !important;
+    transform-origin: center top !important;
+  }
+  #preview.cols-2 { columns: 2 !important; }
+  #preview.cols-3 { columns: 3 !important; }
+  #preview.bleed { position: static !important; }
+  #preview.bleed .block { position: static !important; opacity: 0.18 !important; }
+  .block { overflow: visible !important; break-inside: avoid; border-bottom: 1px solid #ccc; padding: 0.8rem 0; }
+  body.invert .block { border-bottom-color: #333 !important; }
+  body.poster-mode #preview .block.poster-target { min-height: 22cm !important; }
+  ::-webkit-scrollbar { display: none !important; }
+  * { scrollbar-width: none !important; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="h-title">black-math</span>
+  <span class="h-sym">∮ ∇ ⊗ ℵ Ω ∂ ∏ √ ∑ ξ Ψ ∞ ⊕ ∧ ∨ ℜ ℑ ∀ ∃ ∄ Γ Δ Λ Ξ Σ Φ</span>
+  <div class="h-btns">
+    <button class="btn" onclick="clearAll()"   title="clear">✕</button>
+    <button class="btn" onclick="copySource()" title="copy latex">⎘</button>
+    <button class="btn" onclick="saveTxt()"    title="save .txt">↓</button>
+    <button class="btn" onclick="exportSvg()"  title="export svg">▱</button>
+    <button class="btn" onclick="printView()"  title="print">⎙</button>
+    <button class="btn" onclick="toggleFs()" id="fs-btn" title="fullscreen">⤢</button>
+    <span class="status" id="status"></span>
+  </div>
+</header>
+
+<div class="modes">
+  <button class="mbtn" id="btn-inv"    onclick="toggleInvert()"  title="invert">⬛</button>
+  <button class="mbtn" id="btn-tile"   onclick="cycleTile()"     title="tile repeat">⊞</button>
+  <span   class="mval" id="val-tile"   style="display:none">2</span>
+  <button class="mbtn" id="btn-cols"   onclick="cycleCols()"     title="columns">▤</button>
+  <span   class="mval" id="val-cols">1</span>
+  <button class="mbtn" id="btn-bleed"  onclick="toggleBleed()"   title="bleed/overlap">⫰</button>
+  <button class="mbtn" id="btn-poster" onclick="togglePoster()"  title="click block to poster">◻</button>
+  <div class="modes-sep"></div>
+  <button class="mbtn" id="btn-gen"   onclick="generateBlocks()"    title="generate">⚄</button>
+  <select id="algo-sel" class="algo-sel" title="algorithm"></select>
+  <button class="mbtn" id="btn-gset"  onclick="generateSet()"       title="coordinated themed set">⚇</button>
+  <button class="mbtn" id="btn-cross" onclick="crossoverBlocks()"   title="crossover last two blocks">⤲</button>
+  <span class="seed-badge" id="seed-badge"
+        onclick="onSeedClick()" ondblclick="onSeedDblClick()"
+        title="seed (click=copy, dblclick=set)">--------</span>
+  <div class="modes-sep"></div>
+  <button class="mbtn" id="btn-mh"  onclick="toggleMirrorH()" title="mirror horizontal">↔</button>
+  <button class="mbtn" id="btn-mv"  onclick="toggleMirrorV()" title="mirror vertical">↕</button>
+  <button class="mbtn" id="btn-rot" onclick="cycleRotate()"   title="rotate 90°">↻</button>
+  <span   class="mval" id="val-rot" style="display:none">90</span>
+  <div class="modes-sep"></div>
+  <span class="mval" title="spice — recursion / decoration intensity">⌁</span>
+  <input type="range" id="spice" class="range-sm" min="0.4" max="2.5" step="0.05" value="1" title="spice">
+  <span class="mval" title="font size">A</span>
+  <input type="range" id="font-sz" min="0.4" max="3.5" step="0.05" value="1" title="font size">
+</div>
+
+<main>
+  <div class="pane pane-edit">
+    <textarea id="editor" spellcheck="false" placeholder="$$ ... $$"></textarea>
+  </div>
+  <div class="divider"></div>
+  <div class="pane pane-preview">
+    <div id="preview"></div>
+  </div>
+</main>
+
+<script>
+const editor  = document.getElementById('editor');
+const preview = document.getElementById('preview');
+const status  = document.getElementById('status');
+const fsbtn   = document.getElementById('fs-btn');
+let timer = null;
+
+// mode state
+let modeInvert = false;
+let modeTile   = 0;   // 0=off, 2,3,4
+let modeCols   = 1;
+let modeBleed  = false;
+let modePoster = false;
+let posterTarget = null;
+let mirrorH  = false;
+let mirrorV  = false;
+let rotation = 0;
+
+function applyTransform() {
+  preview.style.setProperty('--rot', rotation + 'deg');
+  preview.style.setProperty('--sx', mirrorH ? -1 : 1);
+  preview.style.setProperty('--sy', mirrorV ? -1 : 1);
+  const pane = document.querySelector('.pane-preview');
+  pane.style.overflow = (rotation === 90 || rotation === 270) ? 'visible' : 'hidden';
+}
+
+function toggleMirrorH() {
+  mirrorH = !mirrorH;
+  document.getElementById('btn-mh').classList.toggle('on', mirrorH);
+  applyTransform();
+}
+
+function toggleMirrorV() {
+  mirrorV = !mirrorV;
+  document.getElementById('btn-mv').classList.toggle('on', mirrorV);
+  applyTransform();
+}
+
+function cycleRotate() {
+  rotation = (rotation + 90) % 360;
+  const v = document.getElementById('val-rot');
+  const b = document.getElementById('btn-rot');
+  if (rotation === 0) { v.style.display = 'none'; b.classList.remove('on'); }
+  else { v.textContent = rotation + '°'; v.style.display = ''; b.classList.add('on'); }
+  applyTransform();
+}
+
+// ---- SEED ----
+const SEED = `$$
+\\begin{vmatrix} \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} \\\\ \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} \\\\ \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} \\\\ \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} \\\\ \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} \\end{vmatrix}^{\\begin{vmatrix} \\aleph_{\\aleph} & \\Omega^{\\Omega} & \\aleph_{\\aleph} \\\\ \\Omega^{\\Omega} & \\aleph_{\\aleph} & \\Omega^{\\Omega} \\\\ \\aleph_{\\aleph} & \\Omega^{\\Omega} & \\aleph_{\\aleph} \\end{vmatrix}^{\\begin{vmatrix} \\aleph & \\Omega \\\\ \\Omega & \\aleph \\end{vmatrix}^{\\cdots}}}
+$$
+
+$$
+\\underbrace{\\overbrace{\\underbrace{\\overbrace{\\underbrace{\\overbrace{\\underbrace{\\overbrace{\\underbrace{\\overbrace{\\Xi\\otimes\\Xi\\otimes\\Xi\\otimes\\Xi\\otimes\\Xi\\otimes\\Xi\\otimes\\Xi\\otimes\\Xi}^{\\Omega\\Omega\\Omega\\Omega\\Omega\\Omega\\Omega\\Omega}}_{\\aleph\\aleph\\aleph\\aleph\\aleph\\aleph\\aleph\\aleph}}^{\\Omega\\Omega\\Omega\\Omega\\Omega\\Omega\\Omega\\Omega}}_{\\aleph\\aleph\\aleph\\aleph\\aleph\\aleph\\aleph\\aleph}}^{\\Omega\\Omega\\Omega\\Omega\\Omega\\Omega\\Omega\\Omega}}_{\\aleph\\aleph\\aleph\\aleph\\aleph\\aleph\\aleph\\aleph}}^{\\Omega\\Omega\\Omega\\Omega\\Omega\\Omega\\Omega\\Omega}}_{\\aleph\\aleph\\aleph\\aleph\\aleph\\aleph\\aleph\\aleph}}^{\\Omega\\Omega\\Omega\\Omega\\Omega\\Omega\\Omega\\Omega}}_{\\aleph\\aleph\\aleph\\aleph\\aleph\\aleph\\aleph\\aleph}
+$$
+
+$$
+\\sqrt{\\sqrt{\\sqrt{\\sqrt{\\sqrt{\\sqrt{\\sqrt{\\sqrt{\\sqrt{\\sqrt{\\sqrt{\\sqrt{\\oint\\oint\\oint\\oint\\oint\\oint\\oint\\oint\\oint\\oint\\oint\\oint\\oint\\oint\\oint\\oint}}}}}}}}}}}}
+$$
+
+$$
+\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}}}}}}}}} \\otimes \\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}}}}}}}}} \\otimes \\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}}}}}}}}}
+$$`;
+
+// ---- RENDER PIPELINE ----
+function extractBlocks(src) {
+  const out = [];
+  const re = /\$\$([\s\S]*?)\$\$/g;
+  let m;
+  while ((m = re.exec(src)) !== null) out.push(m[1].trim());
+  return out;
+}
+
+function tryKatex(latex, el) {
+  // single attempt with bounded expansion. on failure, fall through to MathJax.
+  try {
+    katex.render(latex, el, { displayMode: true, throwOnError: true, strict: false, maxExpand: 2000, maxSize: 500 });
+    return true;
+  } catch(e) {
+    return false;
+  }
+}
+
+async function mjxRender(latex, el) {
+  if (!window.MathJax) return false;
+  try {
+    await MathJax.startup.promise;
+    const node = await MathJax.tex2svgPromise(latex, { display: true });
+    const svg = node.querySelector('svg');
+    if (svg) {
+      svg.style.maxWidth = '100%'; svg.style.display = 'block'; svg.style.margin = '0 auto';
+      el.innerHTML = ''; el.appendChild(svg);
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+async function render() {
+  const src = editor.value.trim();
+  if (!src) { preview.innerHTML = ''; status.textContent = ''; return; }
+  const blocks = extractBlocks(src);
+  if (!blocks.length) { preview.innerHTML = '<div class="err">no $$ blocks</div>'; return; }
+
+  preview.innerHTML = '';
+  posterTarget = null;
+  document.body.classList.remove('poster-mode');
+  let mjxPending = 0;
+
+  blocks.forEach((latex, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'block';
+    wrap.dataset.latex = latex;
+
+    const ok = tryKatex(latex, wrap);
+    if (!ok) {
+      wrap.innerHTML = `<span class="pending" style="font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--dim);">…</span>`;
+      mjxPending++;
+      mjxRender(latex, wrap).then(rendered => {
+        if (!rendered) wrap.innerHTML = `<span class="err">! ${i+1}</span>`;
+        mjxPending--;
+        if (mjxPending === 0) { applyModes(); updateStatus(); }
+      });
+    }
+    preview.appendChild(wrap);
+
+    if (modePoster) wrap.style.cursor = 'crosshair';
+  });
+
+  applyModes();
+  updateStatus();
+}
+
+function applyModes() {
+  // columns
+  preview.classList.remove('cols-2','cols-3');
+  if (modeCols === 2) preview.classList.add('cols-2');
+  if (modeCols === 3) preview.classList.add('cols-3');
+
+  // bleed
+  preview.classList.toggle('bleed', modeBleed);
+
+  // tile - wrap each block's content in a repeat grid
+  if (modeTile >= 2) {
+    preview.querySelectorAll('.block').forEach(b => {
+      if (b.querySelector('.pending') || b.querySelector('.err')) return;
+      const inner = b.innerHTML;
+      let grid = `<div class="tile-grid" style="grid-template-columns:repeat(${modeTile},1fr);">`;
+      for (let i = 0; i < modeTile * modeTile; i++) {
+        grid += `<div class="tile-cell">${inner}</div>`;
+      }
+      grid += '</div>';
+      b.innerHTML = grid;
+    });
+  }
+}
+
+function updateStatus() {
+  const total = preview.querySelectorAll('.block').length;
+  const errs  = preview.querySelectorAll('.err').length;
+  const pend  = preview.querySelectorAll('.pending').length;
+  status.textContent = total + (errs ? ` !${errs}` : '') + (pend ? ` ·${pend}` : '');
+}
+
+editor.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(render, 300); });
+
+// ---- MODE CONTROLS ----
+function toggleInvert() {
+  modeInvert = !modeInvert;
+  document.body.classList.toggle('invert', modeInvert);
+  document.getElementById('btn-inv').classList.toggle('on', modeInvert);
+}
+
+function cycleTile() {
+  const seq = [0,2,3,4];
+  modeTile = seq[(seq.indexOf(modeTile) + 1) % seq.length];
+  const v = document.getElementById('val-tile');
+  const b = document.getElementById('btn-tile');
+  if (modeTile === 0) { v.style.display = 'none'; b.classList.remove('on'); }
+  else { v.textContent = modeTile; v.style.display = ''; b.classList.add('on'); }
+  render();
+}
+
+function cycleCols() {
+  modeCols = (modeCols % 3) + 1;
+  document.getElementById('val-cols').textContent = modeCols;
+  document.getElementById('btn-cols').classList.toggle('on', modeCols > 1);
+  applyModes();
+}
+
+function toggleBleed() {
+  modeBleed = !modeBleed;
+  document.getElementById('btn-bleed').classList.toggle('on', modeBleed);
+  applyModes();
+}
+
+function togglePoster() {
+  modePoster = !modePoster;
+  document.getElementById('btn-poster').classList.toggle('on', modePoster);
+  if (!modePoster) {
+    document.body.classList.remove('poster-mode');
+    preview.querySelectorAll('.block').forEach(b => {
+      b.classList.remove('poster-target');
+      b.style.cursor = '';
+    });
+    posterTarget = null;
+  } else {
+    preview.querySelectorAll('.block').forEach(b => { b.style.cursor = 'crosshair'; });
+  }
+}
+
+// single delegated click handler for poster mode — avoids leaks across toggles.
+preview.addEventListener('click', e => {
+  if (!modePoster) return;
+  const blk = e.target.closest('.block');
+  if (blk && preview.contains(blk)) activatePoster(blk);
+});
+
+function activatePoster(blockEl) {
+  if (!modePoster) return;
+  preview.querySelectorAll('.block').forEach(b => b.classList.remove('poster-target'));
+  blockEl.classList.add('poster-target');
+  document.body.classList.add('poster-mode');
+  posterTarget = blockEl;
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && modePoster) {
+    document.body.classList.remove('poster-mode');
+    preview.querySelectorAll('.block').forEach(b => b.classList.remove('poster-target'));
+  }
+});
+
+document.getElementById('font-sz').addEventListener('input', e => {
+  document.documentElement.style.setProperty('--ks', e.target.value + 'em');
+});
+
+document.getElementById('spice').addEventListener('input', e => {
+  SPICE = parseFloat(e.target.value);
+});
+
+// ---- RANDOM GENERATOR ----
+// recursive expression grammar, weighted productions, seedable PRNG, spice, personalities, themes, crossover
+
+// PRNG (mulberry32) — deterministic given a seed
+let prngSeed = (Math.random() * 4294967296) >>> 0;
+function mulberry32(s) {
+  return function() {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+let rng = mulberry32(prngSeed);
+function rand() { return rng(); }
+
+function setSeed(s) {
+  prngSeed = (s >>> 0);
+  rng = mulberry32(prngSeed);
+  updateSeedDisplay();
+}
+function newSeed() { setSeed((Math.random() * 4294967296) >>> 0); }
+function updateSeedDisplay() {
+  const el = document.getElementById('seed-badge');
+  if (el) el.textContent = prngSeed.toString(16).padStart(8, '0');
+}
+
+let seedClickTimer = null;
+function onSeedClick() {
+  if (seedClickTimer) return;
+  seedClickTimer = setTimeout(() => {
+    navigator.clipboard.writeText(prngSeed.toString(16)).then(() => {
+      const el = document.getElementById('seed-badge');
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 600);
+    });
+    seedClickTimer = null;
+  }, 250);
+}
+function onSeedDblClick() {
+  clearTimeout(seedClickTimer);
+  seedClickTimer = null;
+  const v = prompt('seed (hex)', prngSeed.toString(16));
+  if (v) {
+    const n = parseInt(v, 16);
+    if (!isNaN(n)) setSeed(n);
+  }
+}
+
+// helpers — all use seeded rng
+function rnd(a,b)   { return Math.floor(rand()*(b-a+1))+a; }
+function pick(arr)  { return arr[Math.floor(rand()*arr.length)]; }
+function maybe(p)   { return rand() < p; }
+function rep(s,n)   { return Array(n).fill(s).join(''); }
+function pickN(arr, n) {
+  const copy = [...arr];
+  const out = [];
+  while (out.length < n && copy.length) out.push(copy.splice(Math.floor(rand()*copy.length), 1)[0]);
+  return out;
+}
+function wpick(items, weights) {
+  const total = weights.reduce((a,b)=>a+b, 0);
+  let r = rand() * total;
+  for (let i = 0; i < items.length; i++) { r -= weights[i]; if (r <= 0) return items[i]; }
+  return items[items.length-1];
+}
+
+// spice — capped to keep rendering tractable
+let SPICE = 1.0;
+function depth(base) { return Math.max(1, Math.min(8, Math.round(base * Math.min(1.5, SPICE)))); }
+
+// global node budget — prevents combinatorial blowup when matrices/chains nest.
+// reset before each top-level shape; expr() decrements and falls through to atom() when exhausted.
+let exprBudget = 0;
+
+// ---- ATOM POOL ----
+const GREEK_LOWER = ['\\alpha','\\beta','\\gamma','\\delta','\\epsilon','\\varepsilon','\\zeta','\\eta','\\theta','\\vartheta','\\iota','\\kappa','\\lambda','\\mu','\\nu','\\xi','\\pi','\\varpi','\\rho','\\varrho','\\sigma','\\varsigma','\\tau','\\upsilon','\\phi','\\varphi','\\chi','\\psi','\\omega'];
+const GREEK_UPPER = ['\\Gamma','\\Delta','\\Theta','\\Lambda','\\Xi','\\Pi','\\Sigma','\\Upsilon','\\Phi','\\Psi','\\Omega'];
+const HEBREW = ['\\aleph','\\beth','\\gimel','\\daleth'];
+const SPECIAL = ['\\nabla','\\partial','\\infty','\\emptyset','\\varnothing','\\forall','\\exists','\\nexists','\\top','\\bot','\\heartsuit','\\diamondsuit','\\clubsuit','\\spadesuit','\\dagger','\\ddagger','\\hbar','\\ell','\\wp','\\Re','\\Im','\\mho','\\eth','\\Game','\\Finv','\\backepsilon'];
+const FRAK = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split('').map(c => `\\mathfrak{${c}}`);
+const CAL  = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(c => `\\mathcal{${c}}`);
+const BBOLD = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(c => `\\mathbb{${c}}`);
+const SF   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split('').map(c => `\\mathsf{${c}}`);
+const TT   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split('').map(c => `\\mathtt{${c}}`);
+const BIGOP_ATOMS = ['\\int','\\oint','\\iint','\\iiint','\\oiint','\\prod','\\sum','\\bigotimes','\\bigoplus'];
+
+let ATOMS = [...GREEK_LOWER, ...GREEK_UPPER, ...HEBREW, ...SPECIAL, ...FRAK, ...CAL, ...BBOLD, ...SF, ...TT, ...BIGOP_ATOMS];
+const ATOMS_FULL = [...ATOMS]; // immutable backup for restoration in themed mode
+
+let BINOPS = ['\\otimes','\\oplus','\\wedge','\\vee','\\circ','\\star','\\cdot','\\boxtimes','\\boxplus','\\boxdot','\\divideontimes','\\ltimes','\\rtimes','\\intercal','\\curlywedge','\\curlyvee','\\barwedge','\\veebar','\\amalg','\\smile','\\frown','\\bullet'];
+const BINOPS_FULL = [...BINOPS];
+
+const RELS = ['\\to','\\leftarrow','\\leftrightarrow','\\Rightarrow','\\Leftarrow','\\mapsto','\\hookrightarrow','\\twoheadrightarrow','\\rightharpoonup','\\rightleftharpoons','\\longrightarrow','\\longmapsto','\\equiv','\\sim','\\simeq','\\approx','\\cong','\\propto','\\preceq','\\succeq','\\subset','\\supset','\\sqsubset','\\sqsupset','\\models','\\vdash','\\dashv','\\bowtie'];
+const MTYPES = ['vmatrix','pmatrix','bmatrix','Vmatrix','Bmatrix','matrix'];
+const ACCENTS = ['\\hat','\\tilde','\\bar','\\vec','\\dot','\\ddot','\\breve','\\acute','\\grave','\\check','\\widehat','\\widetilde','\\overline'];
+const DELIMPAIRS = [
+  ['\\left(','\\right)'],['\\left[','\\right]'],['\\left\\{','\\right\\}'],
+  ['\\left|','\\right|'],['\\left\\lfloor','\\right\\rfloor'],
+  ['\\left\\lceil','\\right\\rceil'],['\\left\\langle','\\right\\rangle'],
+  ['\\left\\|','\\right\\|']
+];
+const BIGOPS = ['\\prod','\\sum','\\bigotimes','\\bigoplus','\\bigcap','\\bigcup','\\bigsqcup','\\bigwedge','\\bigvee','\\coprod'];
+const SPACING = ['\\,','\\:','\\;','\\!','\\quad','\\qquad'];
+const STYLE_WRAPS = ['\\boldsymbol','\\mathbf','\\mathit'];
+
+// decorated atom
+function atom() {
+  let s = pick(ATOMS);
+  const layerProb = Math.min(0.7, 0.30 * SPICE);
+  if (maybe(layerProb)) {
+    const maxLayers = Math.min(6, Math.max(1, Math.round(4 * SPICE)));
+    const layers = rnd(1, maxLayers);
+    for (let i = 0; i < layers; i++) s = `${pick(ACCENTS)}{${s}}`;
+  }
+  if (maybe(0.10 * SPICE)) s = `${pick(STYLE_WRAPS)}{${s}}`;
+  return s;
+}
+
+function spacedJoin(parts, op) {
+  if (!maybe(0.4)) return parts.join(` ${op} `);
+  return parts.map((p, i) => i === 0 ? p : `${pick(SPACING)} ${op} ${pick(SPACING)} ${p}`).join('');
+}
+
+// ---- PRODUCTIONS (weighted, modulated by personality) ----
+const PRODUCTIONS = [
+  { name: 'frac',    base: 0.10, fn: d => `\\frac{${expr(d-1)}}{${expr(d-1)}}` },
+  { name: 'cfrac',   base: 0.04, fn: d => {
+      let s = expr(1);
+      const n = Math.min(rnd(2, 4), Math.max(1, d));
+      for (let i = 0; i < n; i++) s = `\\cfrac{${expr(1)}}{${expr(1)} + ${s}}`;
+      return s;
+  }},
+  { name: 'sup',     base: 0.08, fn: d => `{${expr(d-1)}}^{${expr(d-1)}}` },
+  { name: 'sub',     base: 0.06, fn: d => `{${expr(d-1)}}_{${expr(d-1)}}` },
+  { name: 'subsup',  base: 0.06, fn: d => `{${expr(d-1)}}_{${expr(d-1)}}^{${expr(d-1)}}` },
+  { name: 'sqrt',    base: 0.06, fn: d => `\\sqrt{${expr(d-1)}}` },
+  { name: 'sqrtN',   base: 0.04, fn: d => `\\sqrt[${atom()}]{${expr(d-1)}}` },
+  { name: 'underbr', base: 0.06, fn: d => `\\underbrace{${expr(d-1)}}_{${expr(d-1)}}` },
+  { name: 'overbr',  base: 0.06, fn: d => `\\overbrace{${expr(d-1)}}^{${expr(d-1)}}` },
+  { name: 'delim',   base: 0.06, fn: d => { const [l,r] = pick(DELIMPAIRS); return `${l} ${expr(d-1)} ${r}`; }},
+  { name: 'bigop',   base: 0.05, fn: d => { const op = pick(BIGOPS); return `${op}_{${expr(d-2)}}^{${expr(d-2)}} {${expr(d-1)}}`; }},
+  { name: 'cancel',  base: 0.04, fn: d => maybe(0.5) ? `\\cancel{${expr(d-1)}}` : `\\xcancel{${expr(d-1)}}` },
+  { name: 'overset', base: 0.04, fn: d => maybe(0.5) ? `\\overset{${expr(d-2)}}{${expr(d-1)}}` : `\\underset{${expr(d-2)}}{${expr(d-1)}}` },
+  { name: 'xarrow',  base: 0.03, fn: d => { const a = maybe(0.5) ? '\\xrightarrow' : '\\xleftarrow'; return `${a}[${atom()}]{${expr(d-2)}}`; }},
+  { name: 'matrix',  base: 0.05, fn: d => {
+      // tight cap — matrices nested inside expr blow up fast.
+      if (d < 3) return atom();
+      const rows = rnd(2, 3), cols = rnd(2, 3), t = pick(MTYPES);
+      const cellExpr = () => d <= 3 ? atom() : expr(d-2);
+      let body = '';
+      for (let i = 0; i < rows; i++) {
+        body += Array(cols).fill(null).map(cellExpr).join(' & ');
+        if (i < rows-1) body += ' \\\\ ';
+      }
+      return `\\begin{${t}} ${body} \\end{${t}}`;
+  }},
+  { name: 'binom',   base: 0.03, fn: d => `\\binom{${expr(d-1)}}{${expr(d-1)}}` },
+  { name: 'cases',   base: 0.03, fn: d => {
+      if (d < 2) return atom();
+      const n = rnd(2, 3);
+      let body = '';
+      for (let i = 0; i < n; i++) {
+        body += `${expr(d-2)} & ${expr(d-2)}`;
+        if (i < n-1) body += ' \\\\ ';
+      }
+      return `\\begin{cases} ${body} \\end{cases}`;
+  }},
+  { name: 'chain',   base: 0.07, fn: d => {
+      const cap = d > 5 ? 3 : 5;
+      return spacedJoin(Array(rnd(2, cap)).fill(null).map(() => expr(d-1)), pick(BINOPS));
+  }},
+  { name: 'rel',     base: 0.04, fn: d => `${expr(d-1)} ${pick(RELS)} ${expr(d-1)}` },
+  { name: 'atom',    base: 0.07, fn: d => atom() },
+];
+
+// per-block personality biases production weights
+let personality = null;
+
+function makePersonality() {
+  const p = {};
+  PRODUCTIONS.forEach(prod => p[prod.name] = 1);
+  // amplify 1-3 productions
+  const amped = pickN(PRODUCTIONS, rnd(1, 3));
+  amped.forEach(prod => p[prod.name] = 2 + rand() * 4);
+  // suppress 1-2 different productions
+  const remaining = PRODUCTIONS.filter(x => !amped.includes(x));
+  const suppressed = pickN(remaining, rnd(1, 2));
+  suppressed.forEach(prod => p[prod.name] = 0.15);
+  return p;
+}
+
+function expr(d) {
+  if (d <= 0 || exprBudget <= 0) return atom();
+  exprBudget--;
+  const weights = PRODUCTIONS.map(p => p.base * (personality ? personality[p.name] : 1));
+  const prod = wpick(PRODUCTIONS, weights);
+  return prod.fn(d);
+}
+
+// ---- TOP-LEVEL SHAPES ----
+// each entry: { name, fn }. name is shown in the algorithm dropdown.
+const SHAPES = [
+  { name: 'matrix fractal', fn: () => {
+    function recM(d) {
+      const r = rnd(2, 4), c = rnd(2, 4), t = pick(MTYPES);
+      let body = '';
+      for (let i = 0; i < r; i++) {
+        body += Array(c).fill(null).map(() => d > 1 ? expr(depth(2)) : atom()).join(' & ');
+        if (i < r-1) body += ' \\\\ ';
+      }
+      const m = `\\begin{${t}} ${body} \\end{${t}}`;
+      return d <= 0 ? m : `${m}^{${recM(d-1)}^{\\cdots}}`;
+    }
+    return recM(rnd(1, 3));
+  }},
+  { name: 'subscript tower', fn: () => {
+    function subT(e, d) { return d <= 0 ? e : `${e}_{${subT(expr(depth(3)), d-1)}}`; }
+    const op = pick(BINOPS), d = depth(rnd(6, 10));
+    return `${subT(atom(), d)} ${op} ${subT(atom(), d)} ${op} ${subT(atom(), d)}`;
+  }},
+  { name: 'superscript tower', fn: () => {
+    function supT(e, d) { return d <= 0 ? e : `${e}^{${supT(expr(depth(3)), d-1)}}`; }
+    const d = depth(rnd(6, 10));
+    return `${supT(atom(), d)} \\qquad ${supT(atom(), d)} \\qquad ${supT(atom(), d)}`;
+  }},
+  { name: 'brace tower', fn: () => {
+    function uoT(body, d) {
+      if (d <= 0) return body;
+      const inner = uoT(body, d-1);
+      return d % 2 === 0 ? `\\overbrace{${inner}}^{${expr(depth(3))}}` : `\\underbrace{${inner}}_{${expr(depth(3))}}`;
+    }
+    const chain = Array(rnd(4, 8)).fill(null).map(() => expr(depth(4))).join(` ${pick(BINOPS)} `);
+    return uoT(chain, depth(rnd(5, 9)));
+  }},
+  { name: 'sqrt nest', fn: () => {
+    function sqC(fill, d) { return d <= 0 ? fill : `\\sqrt{${sqC(fill, d-1)}}`; }
+    const fill = maybe(0.5)
+      ? rep(pick(['\\oint','\\nabla','\\partial','\\int']), rnd(6, 12))
+      : Array(rnd(3, 6)).fill(null).map(() => expr(depth(3))).join(` ${pick(BINOPS)} `);
+    return sqC(fill, depth(rnd(6, 10)));
+  }},
+  { name: 'frac tree', fn: () => {
+    function fT(d) { if (d <= 0) return expr(depth(3)); const i = fT(d-1); return `\\frac{${i}}{${i}}`; }
+    return `\\frac{${fT(depth(4))}}{${fT(depth(4))}}`;
+  }},
+  { name: 'bigop tower', fn: () => {
+    function opT(base, d) {
+      return d <= 0 ? `${base}_{${expr(depth(3))}}^{${expr(depth(3))}} {${expr(depth(4))}}` : `${base}_{${opT(base, d-1)}}^{${expr(depth(3))}}`;
+    }
+    return `${opT(pick(BIGOPS), depth(rnd(4, 7)))} \\qquad ${opT(pick(BIGOPS), depth(rnd(4, 7)))}`;
+  }},
+  { name: 'wide matrix', fn: () => {
+    const rows = rnd(4, 6), cols = rnd(4, 6), t = pick(MTYPES);
+    let body = '';
+    for (let i = 0; i < rows; i++) {
+      body += Array(cols).fill(null).map(() => expr(depth(2))).join(' & ');
+      if (i < rows-1) body += ' \\\\ ';
+    }
+    return `\\begin{${t}} ${body} \\end{${t}}`;
+  }},
+  { name: 'chain w/ matrix', fn: () => {
+    const chain = Array(rnd(4, 7)).fill(null).map(() => expr(depth(3))).join(` ${pick(BINOPS)} `);
+    const rows = rnd(2, 3), cols = rnd(2, 3), t = pick(MTYPES);
+    let body = '';
+    for (let i = 0; i < rows; i++) {
+      body += Array(cols).fill(null).map(() => expr(depth(2))).join(' & ');
+      if (i < rows-1) body += ' \\\\ ';
+    }
+    return `\\underbrace{${chain}}_{\\begin{${t}} ${body} \\end{${t}}}`;
+  }},
+  { name: 'accent storm', fn: () => {
+    let e = expr(depth(5));
+    const layers = rnd(2, 6);
+    for (let i = 0; i < layers; i++) {
+      e = maybe(0.5) ? `${pick(ACCENTS)}{${e}}` : `${e}^{${pick(ACCENTS)}{${atom()}}} ${pick(BINOPS)} ${pick(ACCENTS)}{${expr(depth(3))}}`;
+    }
+    return e;
+  }},
+  { name: 'contour nest', fn: () => {
+    function ointN(d) {
+      if (d <= 0) return `${pick(['\\oint','\\iint','\\iiint','\\oiint'])} d\\xi`;
+      const [l, r] = pick(DELIMPAIRS);
+      return `${pick(['\\oint','\\iint','\\iiint'])}_{${expr(depth(3))}} ${l} ${ointN(d-1)} ${r}`;
+    }
+    return ointN(depth(rnd(4, 7)));
+  }},
+  { name: 'pure grammar', fn: () => expr(depth(7)) },
+  { name: 'cases', fn: () => {
+    const n = rnd(3, 5);
+    let body = '';
+    for (let i = 0; i < n; i++) {
+      body += `${expr(depth(3))} & ${expr(depth(3))}`;
+      if (i < n-1) body += ' \\\\ ';
+    }
+    return `${expr(depth(3))} = \\begin{cases} ${body} \\end{cases}`;
+  }},
+  { name: 'aligned', fn: () => {
+    const n = rnd(3, 6);
+    let lines = [];
+    for (let i = 0; i < n; i++) lines.push(`${expr(depth(4))} &${pick(RELS)} ${expr(depth(4))}`);
+    return `\\begin{aligned} ${lines.join(' \\\\ ')} \\end{aligned}`;
+  }},
+  { name: 'gathered', fn: () => {
+    const n = rnd(3, 6);
+    let lines = [];
+    for (let i = 0; i < n; i++) lines.push(expr(depth(4)));
+    return `\\begin{gathered} ${lines.join(' \\\\ ')} \\end{gathered}`;
+  }},
+  { name: 'continued fraction', fn: () => {
+    let s = expr(depth(2));
+    const n = rnd(4, 8);
+    for (let i = 0; i < n; i++) s = `\\cfrac{${expr(depth(2))}}{${expr(depth(2))} + ${s}}`;
+    return s;
+  }},
+  { name: 'self-underbrace', fn: () => {
+    function self(d) { if (d <= 0) return atom(); return `\\underbrace{${expr(depth(3))}}_{${self(d-1)}}`; }
+    return self(rnd(4, 7));
+  }},
+  { name: 'binomial nest', fn: () => {
+    function bT(d) { if (d <= 0) return atom(); return `\\binom{${bT(d-1)}}{${bT(d-1)}}`; }
+    return bT(rnd(3, 5));
+  }},
+  { name: 'overset rings', fn: () => {
+    let core = expr(depth(2));
+    const n = rnd(4, 8);
+    for (let i = 0; i < n; i++) core = maybe(0.5) ? `\\overset{${atom()}}{${core}}` : `\\underset{${atom()}}{${core}}`;
+    return core;
+  }},
+];
+
+// selected algorithm: null = random, otherwise the SHAPES entry name.
+let selectedAlgo = null;
+
+function pickShapeFn() {
+  if (selectedAlgo) {
+    const found = SHAPES.find(s => s.name === selectedAlgo);
+    if (found) return found.fn;
+  }
+  return pick(SHAPES).fn;
+}
+
+function generateBlock() {
+  personality = makePersonality();
+  exprBudget = 800;
+  return pickShapeFn()();
+}
+
+function appendBlocks(strs) {
+  const sep = editor.value.trim() ? '\n\n' : '';
+  editor.value = editor.value.trimEnd() + sep + strs.join('\n\n');
+  render();
+}
+function flashBtn(id) {
+  const b = document.getElementById(id);
+  if (!b) return;
+  b.style.color = 'var(--ink)';
+  setTimeout(() => { b.style.color = ''; }, 300);
+}
+
+function generateBlocks() {
+  newSeed();
+  const count = rnd(1, 3);
+  const blocks = [];
+  for (let i = 0; i < count; i++) blocks.push(`$$\n${generateBlock()}\n$$`);
+  appendBlocks(blocks);
+  flashBtn('btn-gen');
+}
+
+// ---- COORDINATED SET ----
+// pick a constrained palette of atoms + ops, generate N blocks under the same theme
+function generateSet() {
+  newSeed();
+  const themeAtoms = pickN(ATOMS_FULL, rnd(3, 5));
+  const themeOps   = pickN(BINOPS_FULL, rnd(1, 2));
+  const themeShapes = pickN(SHAPES, rnd(3, 5));
+  const count = rnd(4, 7);
+
+  // swap out global pools for the theme
+  const savedA = ATOMS.splice(0, ATOMS.length, ...themeAtoms);
+  const savedB = BINOPS.splice(0, BINOPS.length, ...themeOps);
+
+  const blocks = [];
+  try {
+    for (let i = 0; i < count; i++) {
+      personality = makePersonality();
+      exprBudget = 800;
+      blocks.push(`$$\n${pick(themeShapes).fn()}\n$$`);
+    }
+  } finally {
+    ATOMS.splice(0, ATOMS.length, ...savedA);
+    BINOPS.splice(0, BINOPS.length, ...savedB);
+  }
+
+  appendBlocks(blocks);
+  flashBtn('btn-gset');
+}
+
+// ---- CROSSOVER ----
+// splice a subtree from one block into another at a random brace position
+function findBraceGroups(s) {
+  const groups = [];
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '{') {
+      let d = 1;
+      for (let j = i + 1; j < s.length; j++) {
+        if (s[j] === '{') d++;
+        else if (s[j] === '}') {
+          d--;
+          if (d === 0) { groups.push({ start: i, end: j, content: s.slice(i+1, j) }); break; }
+        }
+      }
+    }
+  }
+  return groups;
+}
+
+function crossover(a, b) {
+  const ga = findBraceGroups(a);
+  const gb = findBraceGroups(b);
+  if (!ga.length || !gb.length) return a;
+  const tA = ga[Math.floor(rand() * ga.length)];
+  const sB = gb[Math.floor(rand() * gb.length)];
+  return a.slice(0, tA.start + 1) + sB.content + a.slice(tA.end);
+}
+
+function crossoverBlocks() {
+  const blocks = extractBlocks(editor.value);
+  if (blocks.length < 2) { status.textContent = 'need 2+'; setTimeout(() => render(), 1400); return; }
+  newSeed();
+  const a = blocks[blocks.length - 2];
+  const b = blocks[blocks.length - 1];
+  // generate two children — one each direction
+  const child1 = crossover(a, b);
+  const child2 = crossover(b, a);
+  appendBlocks([`$$\n${child1}\n$$`, `$$\n${child2}\n$$`]);
+  flashBtn('btn-cross');
+}
+
+// initial seed display
+updateSeedDisplay();
+
+// populate algorithm dropdown
+(function initAlgoSelect() {
+  const sel = document.getElementById('algo-sel');
+  if (!sel) return;
+  const opts = ['<option value="">random</option>'];
+  SHAPES.forEach(s => opts.push(`<option value="${s.name}">${s.name}</option>`));
+  sel.innerHTML = opts.join('');
+  sel.addEventListener('change', e => { selectedAlgo = e.target.value || null; });
+})();
+
+// ---- UTILITY BUTTONS ----
+function flash(msg) { status.textContent = msg; setTimeout(() => render(), 1400); }
+function clearAll()   { editor.value=''; preview.innerHTML=''; status.textContent=''; }
+function copySource() { navigator.clipboard.writeText(editor.value).then(() => flash('⎘')); }
+function printView()  { window.print(); }
+function toggleFs()   {
+  document.body.classList.toggle('fs');
+  fsbtn.textContent = document.body.classList.contains('fs') ? '⤡' : '⤢';
+}
+function saveTxt() {
+  const b = new Blob([editor.value], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b); a.download = `bm-${Date.now()}.txt`; a.click();
+  flash('↓');
+}
+
+function exportSvg() {
+  const blocks = preview.querySelectorAll('.block');
+  if (!blocks.length) return;
+
+  // capture the preview pane's actual rendered dimensions so the SVG matches what's on screen.
+  const rect = preview.getBoundingClientRect();
+  const W = Math.max(400, Math.ceil(rect.width));
+  const pad = 24;
+
+  // inject the full KaTeX stylesheet so glyphs render in standalone viewers.
+  let css = '';
+  for (const sheet of document.styleSheets) {
+    if (sheet.href && sheet.href.includes('katex')) {
+      try { css = Array.from(sheet.cssRules).map(r => r.cssText).join('\n'); } catch(e) {}
+    }
+  }
+  const ks = (getComputedStyle(document.documentElement).getPropertyValue('--ks').trim() || '1em');
+  const bg = modeInvert ? '#111' : '#f5f3ee';
+  const ink = modeInvert ? '#eee' : '#111';
+  const ruleColor = modeInvert ? '#222' : '#e0ddd8';
+
+  let y = pad, parts = '';
+  blocks.forEach(b => {
+    const br = b.getBoundingClientRect();
+    const h = Math.max(40, Math.ceil(br.height));
+    parts += `<foreignObject x="${pad}" y="${y}" width="${W - pad * 2}" height="${h}">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="bm-block" style="text-align:center;color:${ink};${modeInvert ? 'filter:invert(1);' : ''}">
+        ${b.innerHTML}
+      </div></foreignObject>
+    <line x1="${pad}" y1="${y + h + 4}" x2="${W - pad}" y2="${y + h + 4}" stroke="${ruleColor}" stroke-width="0.5"/>`;
+    y += h + 12;
+  });
+  const H = y + pad;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+<defs><style>
+${css}
+.bm-block .katex { font-size: ${ks} !important; }
+.bm-block svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+</style></defs>
+<rect width="${W}" height="${H}" fill="${bg}"/>
+${parts}</svg>`;
+  const blob = new Blob([svg], { type: 'image/svg+xml' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `bm-${Date.now()}.svg`; a.click();
+  flash('▱');
+}
+
+window.addEventListener('load', () => { editor.value = SEED; render(); });
+</script>
+</body>
+</html>
