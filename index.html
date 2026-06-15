@@ -144,8 +144,8 @@ body.fs .pane-edit, body.fs .divider { display: none; }
 @media print {
   body > *:not(#print-layer) { display: none !important; }
   html, body { height: auto !important; overflow: visible !important; background: #fff !important; }
-  #print-layer { display: block !important; position: fixed; inset: 0; margin: 0; }
-  #print-layer img { width: 100%; height: 100%; object-fit: fill; display: block; }
+  #print-layer { display: block !important; position: fixed; inset: 0; margin: 0; overflow: hidden; break-inside: avoid; }
+  #print-layer img { width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: fill; display: block; break-inside: avoid; }
 }
 </style>
 </head>
@@ -162,6 +162,7 @@ body.fs .pane-edit, body.fs .divider { display: none; }
     <button class="btn" onclick="exportPng()"   title="export png">▣</button>
     <button class="btn" onclick="exportSvg()"   title="export svg">▱</button>
     <button class="btn" onclick="printView()"   title="print">⎙</button>
+    <span class="mval" id="print-count" title="prints sent this session"></span>
     <button class="btn" onclick="toggleFs()" id="fs-btn" title="fullscreen">⤢</button>
     <span class="status" id="status"></span>
   </div>
@@ -202,6 +203,10 @@ body.fs .pane-edit, body.fs .divider { display: none; }
   <input type="range" id="spice" min="0.4" max="2.5" step="0.05" value="1" title="spice">
   <span class="lbl">size</span>
   <input type="range" id="scale" min="0.2" max="12" step="0.05" value="1" title="scale">
+  <span class="lbl">zoom</span>
+  <input type="range" id="zoom" min="0.1" max="16" step="0.05" value="1" title="viewport zoom (wheel on canvas, drag to pan)">
+  <button class="mbtn" id="btn-fit"  onclick="autoFrame()"     title="auto-frame to inked content">fit</button>
+  <button class="mbtn" id="btn-1to1" onclick="resetViewport()" title="reset zoom and pan">1:1</button>
 </div>
 
 <div class="subbar">
@@ -288,6 +293,8 @@ let gridFill    = 0.92;   // how much of each cell the content fills (>1 bleeds)
 let layer       = { count: 24, angle: 56, spread: 6, rot: 0, scaleStep: 1, jit: 0.4, scale: 0.7, opacity: 1, blend: 'darken', arrange: 'linear' };
 let anim        = { type: 'drift', speed: 1 };
 let overprint   = { on: false, marks: true, offX: 0, offY: 0 };
+let viewport    = { zoom: 1, panX: 0, panY: 0 };   // camera over the whole composition
+let printCount  = 0;                               // prints sent this session
 
 // ---- compositor scratch ----
 let cssW = 0, cssH = 0;          // on-screen sheet size in css px
@@ -484,6 +491,10 @@ function compose() {
 }
 
 function applyGlobalTransform(c, W, H) {
+  // viewport camera (zoom + pan) sits outermost, over the whole composition
+  c.translate(W / 2, H / 2);
+  c.scale(viewport.zoom, viewport.zoom);
+  c.translate(-W / 2 + viewport.panX * W, -H / 2 + viewport.panY * H);
   c.translate(W / 2, H / 2);
   c.rotate(rotation * Math.PI / 180);
   c.scale(mirrorH ? -1 : 1, mirrorV ? -1 : 1);
@@ -730,6 +741,61 @@ canvas.addEventListener('click', (e) => {
   }
 });
 
+// ---- viewport camera : zoom (wheel / slider) + pan (drag) + auto-frame ----
+function clampZoom(z) { return Math.max(0.1, Math.min(16, z)); }
+function resetViewport() {
+  viewport.zoom = 1; viewport.panX = 0; viewport.panY = 0;
+  setRange('zoom', 1); draw(); persist();
+}
+// frame tightly to the inked content: render once at identity, find the ink
+// bounding box, then set zoom/pan so it fills the sheet.
+function autoFrame() {
+  const W = cssW, H = cssH;
+  if (!W || !H || !currentBlocks.length) return;
+  const tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H;
+  const tctx = tmp.getContext('2d');
+  const saved = { zoom: viewport.zoom, panX: viewport.panX, panY: viewport.panY };
+  viewport.zoom = 1; viewport.panX = 0; viewport.panY = 0;
+  composeTo(tctx, W, H);
+  viewport.zoom = saved.zoom; viewport.panX = saved.panX; viewport.panY = saved.panY;
+  const bg = invert ? [0, 0, 0] : (thermal ? [255, 255, 255] : [245, 243, 238]);
+  const d = tctx.getImageData(0, 0, W, H).data;
+  let minX = W, minY = H, maxX = 0, maxY = 0, found = false;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = (y * W + x) * 4;
+    if (Math.abs(d[i] - bg[0]) + Math.abs(d[i + 1] - bg[1]) + Math.abs(d[i + 2] - bg[2]) > 40) {
+      found = true;
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }
+  }
+  if (!found) return;
+  const bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY);
+  viewport.zoom = clampZoom(Math.min(W / (bw * 1.08), H / (bh * 1.08)));
+  viewport.panX = (W / 2 - (minX + maxX) / 2) / W;
+  viewport.panY = (H / 2 - (minY + maxY) / 2) / H;
+  setRange('zoom', viewport.zoom); draw(); persist();
+}
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  viewport.zoom = clampZoom(viewport.zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12));
+  setRange('zoom', viewport.zoom); draw(); persist();
+}, { passive: false });
+let vpDrag = null;
+canvas.addEventListener('pointerdown', (e) => {
+  if (mode === 'poster') return;
+  vpDrag = { x: e.clientX, y: e.clientY, px: viewport.panX, py: viewport.panY };
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (!vpDrag) return;
+  viewport.panX = vpDrag.px + (e.clientX - vpDrag.x) / (viewport.zoom * cssW);
+  viewport.panY = vpDrag.py + (e.clientY - vpDrag.y) / (viewport.zoom * cssH);
+  draw();
+});
+canvas.addEventListener('pointerup', () => { if (vpDrag) { vpDrag = null; persist(); } });
+canvas.addEventListener('dblclick', resetViewport);
+
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && document.body.classList.contains('fs')) toggleFs();
 });
@@ -741,7 +807,7 @@ function persist() {
     localStorage.setItem(LS, JSON.stringify({
       text: editor.value, mode, paper, orientation, invert, thermal,
       mirrorH, mirrorV, rotation, scale: userScale, spice: SPICE,
-      gridRows, gridCols, gridGap, gridFill, layer, anim, overprint, seed: prngSeed
+      gridRows, gridCols, gridGap, gridFill, layer, anim, overprint, viewport, seed: prngSeed
     }));
   } catch (e) {}
 }
@@ -763,6 +829,7 @@ function restore() {
     if (s.layer) Object.assign(layer, s.layer);
     if (s.anim) Object.assign(anim, s.anim);
     if (s.overprint) Object.assign(overprint, s.overprint);
+    if (s.viewport) Object.assign(viewport, s.viewport);
     if (s.seed != null) { prngSeed = s.seed >>> 0; rng = mulberry32(prngSeed); }
     return s.text != null && s.text.trim().length > 0;
   } catch (e) { return false; }
@@ -816,7 +883,8 @@ function syncUI() {
   document.body.classList.toggle('op-on', overprint.on);
   document.getElementById('btn-orient').textContent = orientation === 'portrait' ? 'P' : 'L';
   if (rotation !== 0) { const v = document.getElementById('val-rot'); v.textContent = rotation + '°'; v.style.display = ''; document.getElementById('btn-rot').classList.add('on'); }
-  setRange('spice', SPICE); setRange('scale', userScale);
+  setRange('spice', SPICE); setRange('scale', userScale); setRange('zoom', viewport.zoom);
+  if (printCount) document.getElementById('print-count').textContent = '×' + printCount;
   setRange('L-count', layer.count); setRange('L-angle', layer.angle); setRange('L-spread', layer.spread);
   setRange('L-rot', layer.rot); setRange('L-scalestep', layer.scaleStep); setRange('L-jit', layer.jit);
   setRange('L-scale', layer.scale); setRange('L-opacity', layer.opacity); setRange('A-speed', anim.speed);
@@ -832,6 +900,7 @@ function wireControls() {
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   on('spice', 'input', e => { SPICE = parseFloat(e.target.value); persist(); });
   on('scale', 'input', e => { userScale = parseFloat(e.target.value); draw(); persist(); });
+  on('zoom', 'input', e => { viewport.zoom = parseFloat(e.target.value); draw(); persist(); });
   on('paper-sel', 'change', e => { paper = e.target.value; draw(); persist(); });
   on('L-count', 'input', e => { layer.count = parseInt(e.target.value); draw(); persist(); });
   on('L-angle', 'input', e => { layer.angle = parseFloat(e.target.value); draw(); persist(); });
@@ -1413,7 +1482,8 @@ function buildSvg(W, H) {
     '<path d="M ' + p.x + ' ' + (p.y + p.sy * p.m) + ' L ' + p.x + ' ' + p.y + ' L ' + (p.x + p.sx * p.m) + ' ' + p.y +
     '" stroke="' + p.col + '" stroke-width="' + p.lw + '" fill="none" opacity="0.8"/>'
   ).join('');
-  const gt = 'translate(' + (W / 2) + ' ' + (H / 2) + ') rotate(' + rotation + ') scale(' + (mirrorH ? -1 : 1) + ' ' + (mirrorV ? -1 : 1) + ') translate(' + (-W / 2) + ' ' + (-H / 2) + ')' +
+  const vp = 'translate(' + (W / 2) + ' ' + (H / 2) + ') scale(' + viewport.zoom + ') translate(' + (-W / 2 + viewport.panX * W) + ' ' + (-H / 2 + viewport.panY * H) + ') ';
+  const gt = vp + 'translate(' + (W / 2) + ' ' + (H / 2) + ') rotate(' + rotation + ') scale(' + (mirrorH ? -1 : 1) + ' ' + (mirrorV ? -1 : 1) + ') translate(' + (-W / 2) + ' ' + (-H / 2) + ')' +
     (overprint.on ? ' translate(' + (overprint.offX / 100 * W) + ' ' + (overprint.offY / 100 * H) + ')' : '');
   const inner = invert ? '<g style="filter:invert(1)">' + body + '</g>' : body;
   return '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">\n' +
@@ -1445,6 +1515,11 @@ function printView() {
   img.onload = () => setTimeout(() => window.print(), 50);
   img.src = pc.toDataURL('image/png');
   setPageStyle(win, hin);
+  printCount++;
+  const pcEl = document.getElementById('print-count');
+  if (pcEl) pcEl.textContent = '×' + printCount;
+  const p = PAPERS[paper] || PAPERS.letter;
+  flash(p.label + (thermal ? ' 1-bit' : '') + ' · 1 page · #' + printCount);
 }
 
 function toggleFs() {
