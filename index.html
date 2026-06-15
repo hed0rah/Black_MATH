@@ -4,12 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>black-math</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 <script>
+// mathjax is the single renderer. fontCache 'local' makes every block's svg
+// self-contained (own glyph paths) so it rasterizes standalone on a canvas.
 window.MathJax = {
-  tex: { inlineMath: [], displayMath: [] },
+  loader: { load: ['[tex]/cancel', '[tex]/enclose', '[tex]/boldsymbol'] },
+  tex: {
+    inlineMath: [], displayMath: [],
+    packages: { '[+]': ['cancel', 'enclose', 'boldsymbol'] },
+    macros: { oiint: '\\unicode{x222F}', oiiint: '\\unicode{x2230}' }
+  },
+  svg: { fontCache: 'local', displayAlign: 'center', exFactor: 0.5 },
   startup: { typeset: false },
   options: { skipHtmlTags: ['script','noscript','style','textarea','pre'] }
 };
@@ -25,7 +30,6 @@ window.MathJax = {
   --ink: #111;
   --dim: #aaa;
   --rule: #e0ddd8;
-  --ks: 1em;
 }
 
 html, body { height: 100vh; overflow: hidden; background: var(--paper); color: var(--ink); }
@@ -42,13 +46,26 @@ header {
 .h-sym   { font-family: 'Noto Serif JP', serif; font-size: 0.85rem; color: var(--dim); letter-spacing: 0.06em; user-select: none; overflow: hidden; white-space: nowrap; }
 .h-btns  { margin-left: auto; display: flex; gap: 1.1rem; align-items: center; flex-shrink: 0; }
 
-/* ---- modes bar ---- */
-.modes {
-  flex: 0 0 auto; height: 26px;
+/* ---- bars ---- */
+.modes, .subbar {
+  flex: 0 0 auto; min-height: 26px;
   border-bottom: 1px solid var(--rule);
   display: flex; align-items: center;
-  padding: 0 1.5rem; gap: 1.4rem;
+  padding: 4px 1.5rem; gap: 1.1rem; flex-wrap: wrap;
 }
+.subbar { display: none; background: rgba(0,0,0,0.015); }
+body[data-mode="overlap"] .subbar,
+body[data-mode="animate"] .subbar,
+body[data-mode="tile"] .subbar,
+body[data-mode="columns"] .subbar,
+body.op-on .subbar { display: flex; }
+.grp { display: none; align-items: center; gap: 0.7rem; }
+body[data-mode="overlap"] .grp-layer,
+body[data-mode="animate"] .grp-layer { display: flex; }
+body[data-mode="animate"] .grp-anim { display: flex; }
+body[data-mode="tile"] .grp-grid,
+body[data-mode="columns"] .grp-grid { display: flex; }
+body.op-on .grp-op { display: flex; }
 .modes-sep { width: 1px; height: 12px; background: var(--rule); }
 
 /* ---- buttons (shared) ---- */
@@ -61,48 +78,41 @@ header {
 .btn:hover, .mbtn:hover { color: var(--ink); }
 .mbtn.on { color: var(--ink); border-bottom: 1px solid var(--ink); padding-bottom: 1px; }
 
-.mval {
-  font-family: 'Space Mono', monospace; font-size: 0.55rem;
-  color: var(--dim); letter-spacing: 0.05em; cursor: default;
-}
+.mval { font-family: 'Space Mono', monospace; font-size: 0.55rem; color: var(--dim); letter-spacing: 0.05em; cursor: default; min-width: 1.4rem; }
+.lbl  { font-family: 'Space Mono', monospace; font-size: 0.5rem; color: var(--dim); letter-spacing: 0.05em; text-transform: uppercase; }
 
-.algo-sel {
+.algo-sel, .sel {
   font-family: 'Space Mono', monospace; font-size: 0.55rem;
   color: var(--dim); background: transparent; border: 1px solid var(--rule);
   padding: 2px 4px; cursor: pointer; outline: none;
   letter-spacing: 0.05em; text-transform: lowercase;
 }
-.algo-sel:hover { color: var(--ink); border-color: var(--ink); }
-.algo-sel option { background: var(--paper); color: var(--ink); }
+.algo-sel:hover, .sel:hover { color: var(--ink); border-color: var(--ink); }
+.algo-sel option, .sel option { background: var(--paper); color: var(--ink); }
 
 .seed-badge {
   font-family: 'Space Mono', monospace; font-size: 0.55rem;
   color: var(--dim); letter-spacing: 0.08em;
-  border: 1px solid var(--rule);
-  padding: 2px 5px; cursor: pointer;
-  user-select: none;
+  border: 1px solid var(--rule); padding: 2px 5px; cursor: pointer; user-select: none;
   transition: color 0.1s, border-color 0.1s;
 }
-.seed-badge:hover { color: var(--ink); border-color: var(--ink); }
-.seed-badge.flash { color: var(--ink); border-color: var(--ink); }
+.seed-badge:hover, .seed-badge.flash { color: var(--ink); border-color: var(--ink); }
 
-/* font size slider */
-#font-sz {
+/* sliders */
+input[type=range] {
   -webkit-appearance: none; appearance: none;
-  width: 52px; height: 1px;
-  background: var(--rule); outline: none; cursor: pointer; border: none;
+  width: 56px; height: 1px; background: var(--rule); outline: none; cursor: pointer; border: none;
 }
-#font-sz::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 7px; height: 7px;
-  background: var(--dim); border-radius: 50%;
-}
-#font-sz:hover::-webkit-slider-thumb { background: var(--ink); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 7px; height: 7px; background: var(--dim); border-radius: 50%; }
+input[type=range]:hover::-webkit-slider-thumb { background: var(--ink); }
+input[type=range].w { width: 80px; }
 
 .status { font-family: 'Space Mono', monospace; font-size: 0.55rem; color: var(--dim); letter-spacing: 0.08em; min-width: 3.5rem; text-align: right; }
 
 /* ---- layout ---- */
-main { flex: 1 1 0; display: grid; grid-template-columns: 1fr 1px 1fr; min-height: 0; }
-.pane { min-height: 0; display: flex; flex-direction: column; padding: 1.2rem 1.5rem; overflow: hidden; }
+main { flex: 1 1 0; display: grid; grid-template-columns: 360px 1px 1fr; min-height: 0; }
+.pane { min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.pane-edit { padding: 1.2rem 1.5rem; }
 .divider { background: var(--rule); }
 
 #editor {
@@ -115,140 +125,114 @@ main { flex: 1 1 0; display: grid; grid-template-columns: 1fr 1px 1fr; min-heigh
 #editor::-webkit-scrollbar { width: 2px; }
 #editor::-webkit-scrollbar-thumb { background: var(--rule); }
 
-#preview {
-  flex: 1 1 0; min-height: 0; overflow-y: auto;
-  scrollbar-width: thin; scrollbar-color: var(--rule) transparent;
-  transition: background 0.2s, transform 0.25s;
-  transform: rotate(var(--rot,0deg)) scaleX(var(--sx,1)) scaleY(var(--sy,1));
-  transform-origin: center center;
+/* ---- canvas / virtual sheet ---- */
+.pane-preview { align-items: center; justify-content: center; padding: 1.5rem; background: var(--paper); }
+#canvas {
+  box-shadow: 0 1px 8px rgba(0,0,0,0.10); border: 1px solid var(--rule);
+  display: block; max-width: 100%; max-height: 100%;
 }
-#preview::-webkit-scrollbar { width: 2px; }
-#preview::-webkit-scrollbar-thumb { background: var(--rule); }
-
-.block {
-  padding: 1.4rem 0; border-bottom: 1px solid var(--rule);
-  text-align: center; overflow-x: visible;
-  transition: opacity 0.2s, background 0.2s;
-}
-.block:last-child { border-bottom: none; }
-.katex-display { margin: 0 !important; }
-.katex { font-size: var(--ks) !important; }
-.block svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+body[data-mode="poster"] #canvas, body[data-mode="overlap"] #canvas { cursor: crosshair; }
 
 .err { font-family: 'Space Mono', monospace; font-size: 0.6rem; color: #a03020; }
-@keyframes blink { 0%,100%{opacity:0.3} 50%{opacity:1} }
-.pending { animation: blink 1.2s ease-in-out infinite; }
-
-/* ---- MODE: invert ---- */
-body.invert { --paper: #111; --ink: #eee; --dim: #444; --rule: #222; }
-body.invert .katex { filter: invert(1) !important; }
-body.invert .block svg { filter: invert(1) !important; }
-body.invert .pane-preview { background: #111; }
-
-/* ---- MODE: columns ---- */
-#preview.cols-2 { columns: 2; column-gap: 0; }
-#preview.cols-3 { columns: 3; column-gap: 0; }
-#preview.cols-2 .block,
-#preview.cols-3 .block { break-inside: avoid; }
-
-/* ---- MODE: bleed ---- */
-#preview.bleed { position: relative; }
-#preview.bleed .block {
-  position: absolute; width: 100%; top: 1.5rem; left: 0;
-  border: none; opacity: 0.18; mix-blend-mode: multiply;
-}
-body.invert #preview.bleed .block { mix-blend-mode: screen; }
-
-/* ---- MODE: poster ---- */
-body.poster-mode #preview .block { display: none; }
-body.poster-mode #preview .block.poster-target {
-  display: flex; align-items: center; justify-content: center;
-  min-height: calc(100vh - 90px);
-  border: none;
-}
-body.poster-mode #preview .block.poster-target .katex { font-size: calc(var(--ks) * 2.8) !important; }
-body.poster-mode #preview .block.poster-target svg { transform: scale(2.8); transform-origin: center; }
-
-/* ---- MODE: tile (applied via JS grid wrapping) ---- */
-.tile-grid { display: grid; gap: 0; }
-.tile-cell { overflow: hidden; display: flex; align-items: center; justify-content: center; padding: 0.3rem; }
-.tile-cell .katex-display { margin: 0 !important; }
 
 /* ---- fullscreen ---- */
 body.fs main { grid-template-columns: 0 0 1fr; }
 body.fs .pane-edit, body.fs .divider { display: none; }
-body.fs .pane-preview { padding: 2.5rem 6rem; }
-body.fs .block { padding: 2rem 0; }
 
-/* ---- print ---- */
-@page { size: A4; margin: 1.5cm; }
+/* ---- print: only the rendered sheet image, sized exactly to the page ---- */
+#print-layer { display: none; }
 @media print {
-  header, .modes, .pane-edit, .divider { display: none !important; }
-  html, body { height: auto !important; overflow: visible !important; }
-  body.invert { background: #000 !important; }
-  main { display: block !important; height: auto !important; overflow: visible !important; }
-  /* lock the print pane to the printable A4 width so what's on screen matches paper.
-     adjust --ks (font slider) on screen to taste — print uses the same value. */
-  .pane-preview { display: block !important; overflow: visible !important; height: auto !important; padding: 0 !important; }
-  #preview { overflow: visible !important; height: auto !important; columns: unset !important;
-    width: 18cm !important; max-width: 18cm !important; margin: 0 auto !important;
-    transform: rotate(var(--rot,0deg)) scaleX(var(--sx,1)) scaleY(var(--sy,1)) !important;
-    transform-origin: center top !important;
-  }
-  #preview.cols-2 { columns: 2 !important; }
-  #preview.cols-3 { columns: 3 !important; }
-  #preview.bleed { position: static !important; }
-  #preview.bleed .block { position: static !important; opacity: 0.18 !important; }
-  .block { overflow: visible !important; break-inside: avoid; border-bottom: 1px solid #ccc; padding: 0.8rem 0; }
-  body.invert .block { border-bottom-color: #333 !important; }
-  body.poster-mode #preview .block.poster-target { min-height: 22cm !important; }
-  ::-webkit-scrollbar { display: none !important; }
-  * { scrollbar-width: none !important; }
+  body > *:not(#print-layer) { display: none !important; }
+  html, body { height: auto !important; overflow: visible !important; background: #fff !important; }
+  #print-layer { display: block !important; position: fixed; inset: 0; margin: 0; }
+  #print-layer img { width: 100%; height: 100%; object-fit: fill; display: block; }
 }
 </style>
 </head>
-<body>
+<body data-mode="document">
 
 <header>
   <span class="h-title">black-math</span>
   <span class="h-sym">∮ ∇ ⊗ ℵ Ω ∂ ∏ √ ∑ ξ Ψ ∞ ⊕ ∧ ∨ ℜ ℑ ∀ ∃ ∄ Γ Δ Λ Ξ Σ Φ</span>
   <div class="h-btns">
-    <button class="btn" onclick="clearAll()"   title="clear">✕</button>
-    <button class="btn" onclick="copySource()" title="copy latex">⎘</button>
-    <button class="btn" onclick="saveTxt()"    title="save .txt">↓</button>
-    <button class="btn" onclick="exportSvg()"  title="export svg">▱</button>
-    <button class="btn" onclick="printView()"  title="print">⎙</button>
+    <button class="btn" onclick="undo()"       title="undo">↶</button>
+    <button class="btn" onclick="clearAll()"    title="clear">✕</button>
+    <button class="btn" onclick="copySource()"  title="copy latex">⎘</button>
+    <button class="btn" onclick="saveTxt()"     title="save .txt">↓</button>
+    <button class="btn" onclick="exportPng()"   title="export png">▣</button>
+    <button class="btn" onclick="exportSvg()"   title="export svg">▱</button>
+    <button class="btn" onclick="printView()"   title="print">⎙</button>
     <button class="btn" onclick="toggleFs()" id="fs-btn" title="fullscreen">⤢</button>
     <span class="status" id="status"></span>
   </div>
 </header>
 
 <div class="modes">
-  <button class="mbtn" id="btn-inv"    onclick="toggleInvert()"  title="invert">⬛</button>
-  <button class="mbtn" id="btn-tile"   onclick="cycleTile()"     title="tile repeat">⊞</button>
-  <span   class="mval" id="val-tile"   style="display:none">2</span>
-  <button class="mbtn" id="btn-cols"   onclick="cycleCols()"     title="columns">▤</button>
-  <span   class="mval" id="val-cols">1</span>
-  <button class="mbtn" id="btn-bleed"  onclick="toggleBleed()"   title="bleed/overlap">⫰</button>
-  <button class="mbtn" id="btn-poster" onclick="togglePoster()"  title="click block to poster">◻</button>
+  <!-- layout (mutually exclusive) -->
+  <button class="mbtn on" data-layout="document" onclick="setLayout('document')" title="document">▦</button>
+  <button class="mbtn" data-layout="tile"     onclick="cycleTile()"  title="tile NxN">⊞</button>
+  <span   class="mval" id="val-tile" style="display:none">2</span>
+  <button class="mbtn" data-layout="columns"  onclick="cycleCols()"  title="columns">▤</button>
+  <span   class="mval" id="val-cols" style="display:none">2</span>
+  <button class="mbtn" data-layout="overlap"  onclick="setLayout('overlap')" title="overlap / layer engine">⫰</button>
+  <button class="mbtn" data-layout="poster"   onclick="setLayout('poster')"  title="poster">◻</button>
+  <button class="mbtn" data-layout="animate"  onclick="setLayout('animate')" title="animate">◉</button>
   <div class="modes-sep"></div>
-  <button class="mbtn" id="btn-gen"   onclick="generateBlocks()"    title="generate">⚄</button>
-  <select id="algo-sel" class="algo-sel" title="algorithm"></select>
-  <button class="mbtn" id="btn-gset"  onclick="generateSet()"       title="coordinated themed set">⚇</button>
-  <button class="mbtn" id="btn-cross" onclick="crossoverBlocks()"   title="crossover last two blocks">⤲</button>
-  <span class="seed-badge" id="seed-badge"
-        onclick="onSeedClick()" ondblclick="onSeedDblClick()"
-        title="seed (click=copy, dblclick=set)">--------</span>
-  <div class="modes-sep"></div>
-  <button class="mbtn" id="btn-mh"  onclick="toggleMirrorH()" title="mirror horizontal">↔</button>
-  <button class="mbtn" id="btn-mv"  onclick="toggleMirrorV()" title="mirror vertical">↕</button>
-  <button class="mbtn" id="btn-rot" onclick="cycleRotate()"   title="rotate 90°">↻</button>
+  <!-- modifiers -->
+  <button class="mbtn" id="btn-inv"     onclick="toggleInvert()"    title="invert (true negative)">⬛</button>
+  <button class="mbtn" id="btn-mh"      onclick="toggleMirrorH()"   title="mirror horizontal">↔</button>
+  <button class="mbtn" id="btn-mv"      onclick="toggleMirrorV()"   title="mirror vertical">↕</button>
+  <button class="mbtn" id="btn-rot"     onclick="cycleRotate()"     title="rotate 90°">↻</button>
   <span   class="mval" id="val-rot" style="display:none">90</span>
+  <button class="mbtn" id="btn-thermal" onclick="toggleThermal()"   title="thermal 1-bit">◧</button>
+  <button class="mbtn" id="btn-op"      onclick="toggleOverprint()" title="overprint marks/offset">⊹</button>
   <div class="modes-sep"></div>
-  <span class="mval" title="spice — recursion / decoration intensity">⌁</span>
-  <input type="range" id="spice" class="range-sm" min="0.4" max="2.5" step="0.05" value="1" title="spice">
-  <span class="mval" title="font size">A</span>
-  <input type="range" id="font-sz" min="0.4" max="3.5" step="0.05" value="1" title="font size">
+  <!-- generator -->
+  <button class="mbtn" id="btn-gen"   onclick="genFresh()"  title="generate fresh (clears first)">⚄</button>
+  <button class="mbtn" id="btn-app"   onclick="genAppend()" title="generate more (append)">⊕</button>
+  <select id="algo-sel" class="algo-sel" title="algorithm"></select>
+  <button class="mbtn" id="btn-gset"  onclick="pushHistory();generateSet()"    title="coordinated themed set">⚇</button>
+  <button class="mbtn" id="btn-cross" onclick="pushHistory();crossoverBlocks()" title="crossover last two blocks">⤲</button>
+  <span class="seed-badge" id="seed-badge" onclick="onSeedClick()" ondblclick="onSeedDblClick()" title="seed (click=copy, dblclick=set)">--------</span>
+  <div class="modes-sep"></div>
+  <!-- paper + global -->
+  <select id="paper-sel" class="sel" title="paper size"></select>
+  <button class="mbtn" id="btn-orient" onclick="toggleOrient()" title="orientation">P</button>
+  <span class="lbl">spice</span>
+  <input type="range" id="spice" min="0.4" max="2.5" step="0.05" value="1" title="spice">
+  <span class="lbl">size</span>
+  <input type="range" id="scale" min="0.2" max="12" step="0.05" value="1" title="scale">
+</div>
+
+<div class="subbar">
+  <div class="grp grp-layer">
+    <span class="lbl">arrange</span> <select id="L-arrange" class="sel"></select>
+    <span class="lbl">count</span>    <input type="range" id="L-count"     min="1"    max="600" step="1"     value="24">
+    <span class="lbl">angle</span>    <input type="range" id="L-angle"     min="0"    max="180" step="1"     value="56">
+    <span class="lbl">spread</span>   <input type="range" id="L-spread"    min="0"    max="60"  step="0.25"  value="6">
+    <span class="lbl">rot span</span> <input type="range" id="L-rot"       min="0"    max="360" step="1"     value="0">
+    <span class="lbl">zoom</span>     <input type="range" id="L-scalestep" min="0.8"  max="1.2" step="0.005" value="1">
+    <span class="lbl">jitter</span>   <input type="range" id="L-jit"       min="0"    max="1"   step="0.02"  value="0.4">
+    <span class="lbl">scale</span>    <input type="range" id="L-scale"     min="0.05" max="3"   step="0.02"  value="0.7">
+    <span class="lbl">opacity</span>  <input type="range" id="L-opacity"   min="0.05" max="1"   step="0.01"  value="1">
+    <span class="lbl">blend</span>    <select id="L-blend" class="sel"></select>
+  </div>
+  <div class="grp grp-grid">
+    <span class="lbl">rows</span> <input type="range" id="G-rows" min="1"   max="12"  step="1"    value="2">
+    <span class="lbl">cols</span> <input type="range" id="G-cols" min="1"   max="12"  step="1"    value="2">
+    <span class="lbl">gap</span>  <input type="range" id="G-gap"  min="-30" max="30"  step="0.5"  value="0">
+    <span class="lbl">fill</span> <input type="range" id="G-fill" min="0.3" max="1.8" step="0.02" value="0.92">
+  </div>
+  <div class="grp grp-anim">
+    <span class="lbl">motion</span>  <select id="A-type" class="sel"></select>
+    <span class="lbl">speed</span>   <input type="range" id="A-speed" min="0.1" max="4" step="0.1" value="1">
+    <button class="mbtn" id="btn-pause" onclick="toggleAnimPause()" title="pause / resume">⏸</button>
+  </div>
+  <div class="grp grp-op">
+    <span class="lbl">marks</span>  <button class="mbtn on" id="btn-marks" onclick="toggleMarks()" title="registration marks">✛</button>
+    <span class="lbl">pass x</span> <input type="range" id="OP-offx" min="-30" max="30" step="0.5" value="0">
+    <span class="lbl">pass y</span> <input type="range" id="OP-offy" min="-30" max="30" step="0.5" value="0">
+  </div>
 </div>
 
 <main>
@@ -257,58 +241,60 @@ body.fs .block { padding: 2rem 0; }
   </div>
   <div class="divider"></div>
   <div class="pane pane-preview">
-    <div id="preview"></div>
+    <canvas id="canvas"></canvas>
   </div>
 </main>
 
+<div id="print-layer"><img alt=""></div>
+
 <script>
+// ====================================================================
+// black-math : canvas compositor. one render surface feeds screen,
+// print, and export. generator is preserved below verbatim.
+// ====================================================================
+
 const editor  = document.getElementById('editor');
-const preview = document.getElementById('preview');
+const canvas  = document.getElementById('canvas');
 const status  = document.getElementById('status');
 const fsbtn   = document.getElementById('fs-btn');
-let timer = null;
+const ctx     = canvas.getContext('2d');
+const DPR     = Math.min(2, window.devicePixelRatio || 1);
 
-// mode state
-let modeInvert = false;
-let modeTile   = 0;   // 0=off, 2,3,4
-let modeCols   = 1;
-let modeBleed  = false;
-let modePoster = false;
-let posterTarget = null;
-let mirrorH  = false;
-let mirrorV  = false;
-let rotation = 0;
+// ---- paper sizes (physical) ----
+const PAPERS = {
+  letter:  { label: 'letter',  w: 8.5, h: 11,  unit: 'in' },
+  a4:      { label: 'a4',      w: 210, h: 297, unit: 'mm' },
+  thermal: { label: '4x6 thermal', w: 4, h: 6, unit: 'in' }
+};
+const BLENDS = ['darken','multiply','source-over','screen','lighten'];
+const BLEND_LABEL = { 'darken':'darken','multiply':'multiply','source-over':'normal','screen':'screen','lighten':'lighten' };
+const ANIM_TYPES = ['drift','accrete','pulse','swarm','spin','sweep'];
+const ARRANGES = ['linear','radial','scatter'];
 
-function applyTransform() {
-  preview.style.setProperty('--rot', rotation + 'deg');
-  preview.style.setProperty('--sx', mirrorH ? -1 : 1);
-  preview.style.setProperty('--sy', mirrorV ? -1 : 1);
-  const pane = document.querySelector('.pane-preview');
-  pane.style.overflow = (rotation === 90 || rotation === 270) ? 'visible' : 'hidden';
-}
+// ---- presentation state (persisted) ----
+let mode        = 'document';   // document | tile | columns | overlap | poster | animate
+let paper       = 'letter';
+let orientation = 'portrait';
+let invert      = false;
+let thermal     = false;
+let mirrorH     = false;
+let mirrorV     = false;
+let rotation    = 0;
+let userScale   = 1;
+let gridRows    = 2;
+let gridCols    = 2;
+let gridGap     = 0;      // % of cell; negative pushes cells together / overlaps
+let gridFill    = 0.92;   // how much of each cell the content fills (>1 bleeds)
+let layer       = { count: 24, angle: 56, spread: 6, rot: 0, scaleStep: 1, jit: 0.4, scale: 0.7, opacity: 1, blend: 'darken', arrange: 'linear' };
+let anim        = { type: 'drift', speed: 1 };
+let overprint   = { on: false, marks: true, offX: 0, offY: 0 };
 
-function toggleMirrorH() {
-  mirrorH = !mirrorH;
-  document.getElementById('btn-mh').classList.toggle('on', mirrorH);
-  applyTransform();
-}
-
-function toggleMirrorV() {
-  mirrorV = !mirrorV;
-  document.getElementById('btn-mv').classList.toggle('on', mirrorV);
-  applyTransform();
-}
-
-function cycleRotate() {
-  rotation = (rotation + 90) % 360;
-  const v = document.getElementById('val-rot');
-  const b = document.getElementById('btn-rot');
-  if (rotation === 0) { v.style.display = 'none'; b.classList.remove('on'); }
-  else { v.textContent = rotation + '°'; v.style.display = ''; b.classList.add('on'); }
-  applyTransform();
-}
-
-// ---- SEED ----
+// ---- compositor scratch ----
+let cssW = 0, cssH = 0;          // on-screen sheet size in css px
+let g = ctx, GW = 0, GH = 0;     // current draw target + dims
+let RECORD = false;              // when true, blit() records placements for svg export
+let recPlacements = [];
+let currentBlocks = [];          // latex strings currently shown
 const SEED = `$$
 \\begin{vmatrix} \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} \\\\ \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} \\\\ \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} \\\\ \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} \\\\ \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} & \\Omega^{\\Omega^{\\Omega}} & \\aleph_{\\aleph_{\\aleph}} \\end{vmatrix}^{\\begin{vmatrix} \\aleph_{\\aleph} & \\Omega^{\\Omega} & \\aleph_{\\aleph} \\\\ \\Omega^{\\Omega} & \\aleph_{\\aleph} & \\Omega^{\\Omega} \\\\ \\aleph_{\\aleph} & \\Omega^{\\Omega} & \\aleph_{\\aleph} \\end{vmatrix}^{\\begin{vmatrix} \\aleph & \\Omega \\\\ \\Omega & \\aleph \\end{vmatrix}^{\\cdots}}}
 $$
@@ -325,183 +311,547 @@ $$
 \\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}}}}}}}}} \\otimes \\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}}}}}}}}} \\otimes \\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}_{\\ddot{\\hat{\\tilde{\\bar{\\vec{\\mathfrak{X}}}}}}}}}}}}}}
 $$`;
 
-// ---- RENDER PIPELINE ----
+// ---- extract $$ blocks ----
 function extractBlocks(src) {
   const out = [];
   const re = /\$\$([\s\S]*?)\$\$/g;
   let m;
-  while ((m = re.exec(src)) !== null) out.push(m[1].trim());
+  while ((m = re.exec(src)) !== null) { const t = m[1].trim(); if (t) out.push(t); }
   return out;
 }
 
-function tryKatex(latex, el) {
-  // single attempt with bounded expansion. on failure, fall through to MathJax.
-  try {
-    katex.render(latex, el, { displayMode: true, throwOnError: true, strict: false, maxExpand: 2000, maxSize: 500 });
-    return true;
-  } catch(e) {
-    return false;
-  }
-}
+// ---- render cache : latex -> { img, w, h, vb, inner } ----
+const RASTER_EM = 96;
+const cache = new Map();
 
-async function mjxRender(latex, el) {
-  if (!window.MathJax) return false;
+async function ensureBlock(latex) {
+  if (cache.has(latex)) return cache.get(latex);
+  await MathJax.startup.promise;
+  let entry = { error: true, latex };
   try {
-    await MathJax.startup.promise;
-    const node = await MathJax.tex2svgPromise(latex, { display: true });
-    const svg = node.querySelector('svg');
-    if (svg) {
-      svg.style.maxWidth = '100%'; svg.style.display = 'block'; svg.style.margin = '0 auto';
-      el.innerHTML = ''; el.appendChild(svg);
-      return true;
+    const node = MathJax.tex2svg(latex, { display: true });
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:absolute;left:-99999px;top:-99999px;visibility:hidden;font-size:' + RASTER_EM + 'px;line-height:0;';
+    probe.appendChild(node);
+    document.body.appendChild(probe);
+    const svgEl = node.querySelector('svg');
+    if (svgEl && !svgEl.querySelector('[data-mml-node="merror"]')) {
+      const r = svgEl.getBoundingClientRect();
+      const w = Math.max(2, Math.round(r.width));
+      const h = Math.max(2, Math.round(r.height));
+      svgEl.setAttribute('width', w);
+      svgEl.setAttribute('height', h);
+      svgEl.removeAttribute('style');
+      const vb = svgEl.getAttribute('viewBox') || ('0 0 ' + w + ' ' + h);
+      const inner = svgEl.innerHTML;
+      const svgStr = new XMLSerializer().serializeToString(svgEl);
+      document.body.removeChild(probe);
+      const img = new Image();
+      const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      await new Promise((res) => { img.onload = () => res(); img.onerror = () => res(); img.src = url; });
+      URL.revokeObjectURL(url);
+      entry = { img, w, h, vb, inner, latex };
+    } else {
+      document.body.removeChild(probe);
     }
-  } catch(e) {}
-  return false;
+  } catch (e) {
+    entry = { error: true, latex, msg: e.message };
+  }
+  cache.set(latex, entry);
+  return entry;
 }
 
+// inverted (white-on-transparent) variant for true-negative mode, built lazily
+function invVariant(b) {
+  if (b._inv) return b._inv;
+  const c = document.createElement('canvas');
+  c.width = b.w; c.height = b.h;
+  const x = c.getContext('2d');
+  x.filter = 'invert(1)';
+  x.drawImage(b.img, 0, 0);
+  b._inv = c;
+  return b._inv;
+}
+
+// ---- render : rebuild cache for current blocks, then draw ----
+let renderToken = 0;
 async function render() {
-  const src = editor.value.trim();
-  if (!src) { preview.innerHTML = ''; status.textContent = ''; return; }
-  const blocks = extractBlocks(src);
-  if (!blocks.length) { preview.innerHTML = '<div class="err">no $$ blocks</div>'; return; }
-
-  preview.innerHTML = '';
-  posterTarget = null;
-  document.body.classList.remove('poster-mode');
-  let mjxPending = 0;
-
-  blocks.forEach((latex, i) => {
-    const wrap = document.createElement('div');
-    wrap.className = 'block';
-    wrap.dataset.latex = latex;
-
-    const ok = tryKatex(latex, wrap);
-    if (!ok) {
-      wrap.innerHTML = `<span class="pending" style="font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--dim);">…</span>`;
-      mjxPending++;
-      mjxRender(latex, wrap).then(rendered => {
-        if (!rendered) wrap.innerHTML = `<span class="err">! ${i+1}</span>`;
-        mjxPending--;
-        if (mjxPending === 0) { applyModes(); updateStatus(); }
-      });
-    }
-    preview.appendChild(wrap);
-
-    if (modePoster) wrap.style.cursor = 'crosshair';
-  });
-
-  applyModes();
-  updateStatus();
+  const blocks = extractBlocks(editor.value);
+  currentBlocks = blocks;
+  persist();
+  if (!blocks.length) { draw(); status.textContent = ''; return; }
+  const token = ++renderToken;
+  status.textContent = '…';
+  const uniq = [...new Set(blocks)];
+  const results = await Promise.all(uniq.map(ensureBlock));
+  if (token !== renderToken) return;          // a newer render superseded this one
+  const errs = results.filter(r => r.error).length;
+  status.textContent = blocks.length + (errs ? ' !' + errs : '');
+  draw();
 }
 
-function applyModes() {
-  // columns
-  preview.classList.remove('cols-2','cols-3');
-  if (modeCols === 2) preview.classList.add('cols-2');
-  if (modeCols === 3) preview.classList.add('cols-3');
-
-  // bleed
-  preview.classList.toggle('bleed', modeBleed);
-
-  // tile - wrap each block's content in a repeat grid
-  if (modeTile >= 2) {
-    preview.querySelectorAll('.block').forEach(b => {
-      if (b.querySelector('.pending') || b.querySelector('.err')) return;
-      const inner = b.innerHTML;
-      let grid = `<div class="tile-grid" style="grid-template-columns:repeat(${modeTile},1fr);">`;
-      for (let i = 0; i < modeTile * modeTile; i++) {
-        grid += `<div class="tile-cell">${inner}</div>`;
-      }
-      grid += '</div>';
-      b.innerHTML = grid;
-    });
-  }
-}
-
-function updateStatus() {
-  const total = preview.querySelectorAll('.block').length;
-  const errs  = preview.querySelectorAll('.err').length;
-  const pend  = preview.querySelectorAll('.pending').length;
-  status.textContent = total + (errs ? ` !${errs}` : '') + (pend ? ` ·${pend}` : '');
-}
-
+let timer = null;
 editor.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(render, 300); });
 
-// ---- MODE CONTROLS ----
-function toggleInvert() {
-  modeInvert = !modeInvert;
-  document.body.classList.toggle('invert', modeInvert);
-  document.getElementById('btn-inv').classList.toggle('on', modeInvert);
+// ---- sheet geometry ----
+function paperDims() {
+  const p = PAPERS[paper] || PAPERS.letter;
+  let w = p.w, h = p.h;
+  if (orientation === 'landscape') { const t = w; w = h; h = t; }
+  const toIn = p.unit === 'mm' ? 1 / 25.4 : 1;
+  return { win: w * toIn, hin: h * toIn };
 }
 
-function cycleTile() {
-  const seq = [0,2,3,4];
-  modeTile = seq[(seq.indexOf(modeTile) + 1) % seq.length];
-  const v = document.getElementById('val-tile');
-  const b = document.getElementById('btn-tile');
-  if (modeTile === 0) { v.style.display = 'none'; b.classList.remove('on'); }
-  else { v.textContent = modeTile; v.style.display = ''; b.classList.add('on'); }
+function layoutSheet() {
+  const pane = canvas.parentElement;
+  const pad = 8;
+  const availW = Math.max(40, pane.clientWidth - pad * 2);
+  const availH = Math.max(40, pane.clientHeight - pad * 2);
+  const { win, hin } = paperDims();
+  const aspect = win / hin;
+  let sw = availW, sh = sw / aspect;
+  if (sh > availH) { sh = availH; sw = sh * aspect; }
+  return { sw, sh };
+}
+
+function resizeCanvas() {
+  const { sw, sh } = layoutSheet();
+  cssW = sw; cssH = sh;
+  canvas.style.width = sw + 'px';
+  canvas.style.height = sh + 'px';
+  canvas.width = Math.round(sw * DPR);
+  canvas.height = Math.round(sh * DPR);
+}
+
+function bgColor() {
+  if (invert) return '#000';
+  return thermal ? '#fff' : '#f5f3ee';
+}
+
+// ---- deterministic per-instance jitter (tied to current seed) ----
+function hash01(n) {
+  let s = (Math.imul(n, 2654435761) ^ prngSeed) >>> 0;
+  s = Math.imul(s ^ (s >>> 15), s | 1);
+  s ^= s + Math.imul(s ^ (s >>> 7), s | 61);
+  return ((s ^ (s >>> 14)) >>> 0) / 4294967296;
+}
+function jrand(n) { return hash01(n) * 2 - 1; }
+
+function fitScale(b, W, H, frac) { return Math.min((W * frac) / b.w, (H * frac) / b.h); }
+
+// blend flips so density accumulates toward the ink color in either theme
+function adjBlend(bl) {
+  if (invert) { if (bl === 'darken') return 'lighten'; if (bl === 'multiply') return 'screen'; }
+  return bl;
+}
+
+// ---- the one primitive : place a cached block. draws to canvas, or records for svg ----
+function blit(b, x, y, w, h, opt) {
+  opt = opt || {};
+  const alpha = opt.alpha == null ? 1 : opt.alpha;
+  const blend = opt.blend || 'source-over';
+  const rot = opt.rot || 0;
+  if (RECORD) { recPlacements.push({ b, x, y, w, h, alpha, blend, rot }); return; }
+  const src = invert ? invVariant(b) : b.img;
+  g.save();
+  g.globalAlpha = alpha;
+  g.globalCompositeOperation = blend;
+  if (rot) {
+    const cx = x + w / 2, cy = y + h / 2;
+    g.translate(cx, cy); g.rotate(rot * Math.PI / 180); g.translate(-cx, -cy);
+  }
+  g.drawImage(src, x, y, w, h);
+  g.restore();
+}
+
+// ---- compose : fill bg, apply global transform, dispatch to layout ----
+function compose() {
+  const blocks = currentBlocks.map(l => cache.get(l)).filter(b => b && !b.error && b.img);
+  if (!RECORD) { g.clearRect(0, 0, GW, GH); g.fillStyle = bgColor(); g.fillRect(0, 0, GW, GH); }
+  if (!blocks.length) return;
+  if (!RECORD) { g.save(); applyGlobalTransform(g, GW, GH); }
+  switch (mode) {
+    case 'tile':    drawTile(blocks, GW, GH); break;
+    case 'columns': drawColumns(blocks, GW, GH); break;
+    case 'overlap': drawOverlap(blocks, GW, GH); break;
+    case 'poster':  drawPoster(blocks, GW, GH); break;
+    case 'animate': drawAnimate(blocks, GW, GH); break;
+    default:        drawDocument(blocks, GW, GH);
+  }
+  if (!RECORD) g.restore();
+  if (overprint.on && overprint.marks) drawMarks(GW, GH);
+}
+
+function applyGlobalTransform(c, W, H) {
+  c.translate(W / 2, H / 2);
+  c.rotate(rotation * Math.PI / 180);
+  c.scale(mirrorH ? -1 : 1, mirrorV ? -1 : 1);
+  c.translate(-W / 2, -H / 2);
+  if (overprint.on) c.translate(overprint.offX / 100 * W, overprint.offY / 100 * H);
+}
+
+function draw() {
+  resizeCanvas();
+  g = ctx; GW = cssW; GH = cssH;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  RECORD = false;
+  compose();
+}
+
+function composeTo(targetCtx, W, H) {
+  const sg = g, sGW = GW, sGH = GH;
+  g = targetCtx; GW = W; GH = H; RECORD = false;
+  targetCtx.setTransform(1, 0, 0, 1, 0, 0);
+  compose();
+  g = sg; GW = sGW; GH = sGH;
+}
+
+// ---- layout : document (stacked, fit to sheet) ----
+const REF_EMS = 22;   // ~this many ems fit across the sheet at scale 1
+function drawStackInRect(blocks, x, y, w, h, fill) {
+  fill = fill == null ? 0.92 : fill;
+  const gap = h * 0.03;
+  let items = blocks.map(b => {
+    const target = Math.min((b.w / RASTER_EM) * (w / REF_EMS) * userScale, w * 8) * fill;
+    return { b, dw: target, dh: target * (b.h / b.w) };
+  });
+  let total = items.reduce((a, it) => a + it.dh, 0) + gap * Math.max(0, items.length - 1);
+  const maxH = h * (fill > 1 ? fill : 1);
+  const shrink = total > maxH ? maxH / total : 1;
+  let cy = y + (h - total * shrink) / 2;
+  items.forEach(it => {
+    const dw = it.dw * shrink, dh = it.dh * shrink;
+    blit(it.b, x + (w - dw) / 2, cy, dw, dh, { blend: adjBlend('source-over') });
+    cy += dh + gap * shrink;
+  });
+}
+
+function drawDocument(blocks, W, H) {
+  const pad = W * 0.06;
+  drawStackInRect(blocks, pad, pad, W - pad * 2, H - pad * 2);
+}
+
+function drawTile(blocks, W, H) {
+  const rows = gridRows, cols = gridCols, cw = W / cols, ch = H / rows;
+  const ix = (gridGap / 100) * cw / 2, iy = (gridGap / 100) * ch / 2;
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++)
+      drawStackInRect(blocks, c * cw + ix, r * ch + iy, cw - 2 * ix, ch - 2 * iy, gridFill);
+}
+
+function drawColumns(blocks, W, H) {
+  const n = gridCols, pad = W * 0.03, gap = W * 0.015;
+  const colW = (W - pad * 2 - gap * (n - 1)) / n;
+  const ix = (gridGap / 100) * colW / 2;
+  const cols = Array.from({ length: n }, () => []);
+  const heights = new Array(n).fill(0);
+  blocks.forEach(b => {
+    const i = heights.indexOf(Math.min(...heights));
+    cols[i].push(b);
+    heights[i] += (b.h / b.w) * colW * gridFill + colW * 0.06;
+  });
+  cols.forEach((cb, i) => {
+    if (cb.length) drawStackInRect(cb, pad + i * (colW + gap) - ix, pad, colW + 2 * ix, H - pad * 2, gridFill);
+  });
+}
+
+function drawPoster(blocks, W, H) {
+  const b = blocks[0];
+  const pad = Math.min(W, H) * 0.04;
+  const s = Math.min((W - pad * 2) / b.w, (H - pad * 2) / b.h) * Math.min(1.4, userScale);
+  const w = b.w * s, h = b.h * s;
+  blit(b, (W - w) / 2, (H - h) / 2, w, h, { blend: adjBlend('source-over') });
+}
+
+// ---- the layer engine : arrangement (linear / radial / scatter) + density ----
+// returns center-based placement for instance i. offset is angle+spread (linear),
+// a ring (radial), or seeded scatter. rot is a total span fanned across the stack
+// so rot=0 leaves every layer parallel.
+function layerXform(i, count, b, W, H, twist) {
+  const L = layer, cx = W / 2, cy = H / 2;
+  const zoom = Math.pow(L.scaleStep, i - (count - 1) / 2);
+  const s = fitScale(b, W, H, 0.62) * L.scale * zoom * (1 + jrand(i * 3) * L.jit * 0.5);
+  const jx = jrand(i * 3 + 1) * L.jit * W * 0.15;
+  const jy = jrand(i * 3 + 2) * L.jit * H * 0.15;
+  const jr = jrand(i * 3) * L.jit * 40;
+  const span = count <= 1 ? 0 : (i / (count - 1) - 0.5);
+  let x, y, rot;
+  if (L.arrange === 'radial') {
+    const ang = (i / Math.max(1, count)) * Math.PI * 2 + (twist || 0);
+    const rad = (L.spread / 100) * Math.min(W, H);
+    x = cx + Math.cos(ang) * rad + jx;
+    y = cy + Math.sin(ang) * rad + jy;
+    rot = ang * 180 / Math.PI + L.rot + jr;
+  } else if (L.arrange === 'scatter') {
+    x = cx + jrand(i * 5 + 1) * W * 0.28 + jx;
+    y = cy + jrand(i * 5 + 2) * H * 0.28 + jy;
+    rot = jrand(i * 5) * (L.rot || 40) + jr;
+  } else { // linear
+    const a = L.angle * Math.PI / 180;
+    const dist = (i - (count - 1) / 2) * (L.spread / 100) * Math.min(W, H);
+    x = cx + Math.cos(a) * dist + jx;
+    y = cy + Math.sin(a) * dist + jy;
+    rot = span * L.rot + jr;
+  }
+  return { s, x, y, rot };
+}
+
+function drawOverlap(blocks, W, H) {
+  const L = layer, blend = adjBlend(L.blend);
+  for (let i = 0; i < L.count; i++) {
+    const b = blocks[i % blocks.length];
+    const t = layerXform(i, L.count, b, W, H, 0);
+    const w = b.w * t.s, h = b.h * t.s;
+    blit(b, t.x - w / 2, t.y - h / 2, w, h, { alpha: L.opacity, blend, rot: t.rot });
+  }
+}
+
+// ---- animation : motion variants, current frame is what prints ----
+let animT = 0, animRAF = null, animPaused = false;
+// animation builds on the layer arrangement, then perturbs it over time.
+function drawAnimate(blocks, W, H) {
+  const L = layer, t = animT, cx = W / 2, cy = H / 2, blend = adjBlend(L.blend);
+  let count = L.count;
+  if (anim.type === 'accrete') count = Math.max(1, Math.floor((Math.sin(t * 0.3) * 0.5 + 0.5) * L.count) + 1);
+  for (let i = 0; i < count; i++) {
+    const b = blocks[i % blocks.length];
+    const base = layerXform(i, count, b, W, H, anim.type === 'spin' ? t * 0.3 : 0);
+    let s = base.s, x = base.x, y = base.y, rot = base.rot;
+    const ph = i * 0.6;
+    if (anim.type === 'drift') { x += Math.cos(t * 0.5 + ph) * W * 0.10; y += Math.sin(t * 0.4 + ph * 1.3) * H * 0.10; rot += t * 8; }
+    else if (anim.type === 'pulse') { s *= 1 + 0.25 * Math.sin(t + ph); }
+    else if (anim.type === 'swarm') { const rr = 30 + i * 2; x += Math.cos(t * 0.7 + ph) * rr; y += Math.sin(t * 0.9 + ph) * rr; rot += t * 20; }
+    else if (anim.type === 'spin') { rot += t * 30; }
+    else if (anim.type === 'sweep') { const k = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 0.6)); x = cx + (x - cx) * k * 2; y = cy + (y - cy) * k * 2; }
+    const w = b.w * s, h = b.h * s;
+    blit(b, x - w / 2, y - h / 2, w, h, { alpha: L.opacity, blend, rot });
+  }
+}
+function animLoop() {
+  if (mode !== 'animate') { animRAF = null; return; }
+  if (!animPaused) animT += anim.speed * 0.016;
+  draw();
+  animRAF = requestAnimationFrame(animLoop);
+}
+function startAnim() { if (!animRAF) animLoop(); }
+function stopAnim() { if (animRAF) { cancelAnimationFrame(animRAF); animRAF = null; } }
+function toggleAnimPause() {
+  animPaused = !animPaused;
+  document.getElementById('btn-pause').textContent = animPaused ? '⏵' : '⏸';
+}
+
+// ---- registration marks ----
+function drawMarks(W, H) {
+  const m = Math.min(W, H) * 0.045;
+  const col = invert ? '#888' : '#999';
+  const lw = Math.max(1, W * 0.0015);
+  const corners = [[0, 0, 1, 1], [W, 0, -1, 1], [0, H, 1, -1], [W, H, -1, -1]];
+  if (RECORD) {
+    corners.forEach(([x, y, sx, sy]) => {
+      recPlacements.push({ mark: true, x, y, sx, sy, m, col, lw });
+    });
+    return;
+  }
+  g.save();
+  g.strokeStyle = col; g.lineWidth = lw; g.globalAlpha = 0.8;
+  corners.forEach(([x, y, sx, sy]) => {
+    g.beginPath();
+    g.moveTo(x, y + sy * m); g.lineTo(x, y); g.lineTo(x + sx * m, y);
+    g.stroke();
+  });
+  g.restore();
+}
+
+// ==================== MODE / MODIFIER CONTROLS ====================
+function setLayout(m) {
+  if (mode === 'animate' && m !== 'animate') stopAnim();
+  mode = m;
+  document.body.dataset.mode = m;
+  document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === m));
+  if (m === 'animate') startAnim(); else draw();
+  persist();
+}
+
+function cycleTile() { setLayout('tile'); }
+function cycleCols() { setLayout('columns'); }
+
+function toggleInvert() {
+  invert = !invert;
+  document.getElementById('btn-inv').classList.toggle('on', invert);
+  draw(); persist();
+}
+function toggleThermal() {
+  thermal = !thermal;
+  document.getElementById('btn-thermal').classList.toggle('on', thermal);
+  draw(); persist();
+}
+function toggleMirrorH() {
+  mirrorH = !mirrorH;
+  document.getElementById('btn-mh').classList.toggle('on', mirrorH);
+  draw(); persist();
+}
+function toggleMirrorV() {
+  mirrorV = !mirrorV;
+  document.getElementById('btn-mv').classList.toggle('on', mirrorV);
+  draw(); persist();
+}
+function cycleRotate() {
+  rotation = (rotation + 90) % 360;
+  const v = document.getElementById('val-rot'), b = document.getElementById('btn-rot');
+  if (rotation === 0) { v.style.display = 'none'; b.classList.remove('on'); }
+  else { v.textContent = rotation + '°'; v.style.display = ''; b.classList.add('on'); }
+  draw(); persist();
+}
+function toggleOverprint() {
+  overprint.on = !overprint.on;
+  document.getElementById('btn-op').classList.toggle('on', overprint.on);
+  document.body.classList.toggle('op-on', overprint.on);
+  draw(); persist();
+}
+function toggleMarks() {
+  overprint.marks = !overprint.marks;
+  document.getElementById('btn-marks').classList.toggle('on', overprint.marks);
+  draw(); persist();
+}
+function toggleOrient() {
+  orientation = orientation === 'portrait' ? 'landscape' : 'portrait';
+  document.getElementById('btn-orient').textContent = orientation === 'portrait' ? 'P' : 'L';
+  draw(); persist();
+}
+
+// ---- click a block region in poster/overlap to pick the focused block ----
+canvas.addEventListener('click', (e) => {
+  if (mode !== 'poster') return;
+  // poster always shows block 0; clicking rotates which block is focused
+  if (currentBlocks.length > 1) {
+    currentBlocks.push(currentBlocks.shift());
+    draw();
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.body.classList.contains('fs')) toggleFs();
+});
+
+// ==================== PERSISTENCE + HISTORY ====================
+const LS = 'blackmath-v3';
+function persist() {
+  try {
+    localStorage.setItem(LS, JSON.stringify({
+      text: editor.value, mode, paper, orientation, invert, thermal,
+      mirrorH, mirrorV, rotation, scale: userScale, spice: SPICE,
+      gridRows, gridCols, gridGap, gridFill, layer, anim, overprint, seed: prngSeed
+    }));
+  } catch (e) {}
+}
+function restore() {
+  try {
+    const s = JSON.parse(localStorage.getItem(LS));
+    if (!s) return false;
+    if (s.text != null) editor.value = s.text;
+    mode = s.mode || 'document';
+    paper = s.paper || 'letter';
+    orientation = s.orientation || 'portrait';
+    invert = !!s.invert; thermal = !!s.thermal;
+    mirrorH = !!s.mirrorH; mirrorV = !!s.mirrorV;
+    rotation = s.rotation || 0;
+    userScale = s.scale || 1;
+    SPICE = s.spice || 1;
+    gridRows = s.gridRows || 2; gridCols = s.gridCols || 2;
+    gridGap = s.gridGap || 0; gridFill = s.gridFill || 0.92;
+    if (s.layer) Object.assign(layer, s.layer);
+    if (s.anim) Object.assign(anim, s.anim);
+    if (s.overprint) Object.assign(overprint, s.overprint);
+    if (s.seed != null) { prngSeed = s.seed >>> 0; rng = mulberry32(prngSeed); }
+    return s.text != null && s.text.trim().length > 0;
+  } catch (e) { return false; }
+}
+
+const history = [];
+function pushHistory() { history.push(editor.value); if (history.length > 40) history.shift(); }
+function undo() {
+  if (!history.length) return;
+  editor.value = history.pop();
   render();
 }
 
-function cycleCols() {
-  modeCols = (modeCols % 3) + 1;
-  document.getElementById('val-cols').textContent = modeCols;
-  document.getElementById('btn-cols').classList.toggle('on', modeCols > 1);
-  applyModes();
-}
-
-function toggleBleed() {
-  modeBleed = !modeBleed;
-  document.getElementById('btn-bleed').classList.toggle('on', modeBleed);
-  applyModes();
-}
-
-function togglePoster() {
-  modePoster = !modePoster;
-  document.getElementById('btn-poster').classList.toggle('on', modePoster);
-  if (!modePoster) {
-    document.body.classList.remove('poster-mode');
-    preview.querySelectorAll('.block').forEach(b => {
-      b.classList.remove('poster-target');
-      b.style.cursor = '';
-    });
-    posterTarget = null;
-  } else {
-    preview.querySelectorAll('.block').forEach(b => { b.style.cursor = 'crosshair'; });
+// ==================== GENERATE (validated) ====================
+// every candidate is test-rendered before it is added, so generation always
+// produces visible art instead of silently dropping invalid expressions.
+async function genBlocks(n, fresh) {
+  if (fresh) editor.value = '';
+  newSeed();
+  const out = [];
+  let tries = 0;
+  while (out.length < n && tries < n * 8) {
+    tries++;
+    let latex;
+    try { latex = generateBlock(); } catch (e) { continue; }
+    const entry = await ensureBlock(latex);
+    if (entry && !entry.error && entry.img) out.push(latex);
   }
+  if (out.length) appendBlocks(out.map(l => `$$\n${l}\n$$`));
+}
+function genFresh()  { pushHistory(); flashBtn('btn-gen'); genBlocks(rnd(2, 4), true); }
+function genAppend() { pushHistory(); flashBtn('btn-app'); genBlocks(rnd(1, 3), false); }
+
+// ==================== CONTROL WIRING ====================
+function setRange(id, val) { const el = document.getElementById(id); if (el) el.value = val; }
+function fillSelect(id, items, current, labelFn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = items.map(v => `<option value="${v}"${v === current ? ' selected' : ''}>${labelFn ? labelFn(v) : v}</option>`).join('');
 }
 
-// single delegated click handler for poster mode — avoids leaks across toggles.
-preview.addEventListener('click', e => {
-  if (!modePoster) return;
-  const blk = e.target.closest('.block');
-  if (blk && preview.contains(blk)) activatePoster(blk);
-});
-
-function activatePoster(blockEl) {
-  if (!modePoster) return;
-  preview.querySelectorAll('.block').forEach(b => b.classList.remove('poster-target'));
-  blockEl.classList.add('poster-target');
-  document.body.classList.add('poster-mode');
-  posterTarget = blockEl;
+function syncUI() {
+  document.body.dataset.mode = mode;
+  document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('on', b.dataset.layout === mode));
+  document.getElementById('btn-inv').classList.toggle('on', invert);
+  document.getElementById('btn-thermal').classList.toggle('on', thermal);
+  document.getElementById('btn-mh').classList.toggle('on', mirrorH);
+  document.getElementById('btn-mv').classList.toggle('on', mirrorV);
+  document.getElementById('btn-op').classList.toggle('on', overprint.on);
+  document.getElementById('btn-marks').classList.toggle('on', overprint.marks);
+  document.body.classList.toggle('op-on', overprint.on);
+  document.getElementById('btn-orient').textContent = orientation === 'portrait' ? 'P' : 'L';
+  if (rotation !== 0) { const v = document.getElementById('val-rot'); v.textContent = rotation + '°'; v.style.display = ''; document.getElementById('btn-rot').classList.add('on'); }
+  setRange('spice', SPICE); setRange('scale', userScale);
+  setRange('L-count', layer.count); setRange('L-angle', layer.angle); setRange('L-spread', layer.spread);
+  setRange('L-rot', layer.rot); setRange('L-scalestep', layer.scaleStep); setRange('L-jit', layer.jit);
+  setRange('L-scale', layer.scale); setRange('L-opacity', layer.opacity); setRange('A-speed', anim.speed);
+  setRange('G-rows', gridRows); setRange('G-cols', gridCols); setRange('G-gap', gridGap); setRange('G-fill', gridFill);
+  setRange('OP-offx', overprint.offX); setRange('OP-offy', overprint.offY);
+  fillSelect('paper-sel', Object.keys(PAPERS), paper, k => PAPERS[k].label);
+  fillSelect('L-blend', BLENDS, layer.blend, v => BLEND_LABEL[v]);
+  fillSelect('L-arrange', ARRANGES, layer.arrange);
+  fillSelect('A-type', ANIM_TYPES, anim.type);
 }
 
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && modePoster) {
-    document.body.classList.remove('poster-mode');
-    preview.querySelectorAll('.block').forEach(b => b.classList.remove('poster-target'));
-  }
-});
-
-document.getElementById('font-sz').addEventListener('input', e => {
-  document.documentElement.style.setProperty('--ks', e.target.value + 'em');
-});
-
-document.getElementById('spice').addEventListener('input', e => {
-  SPICE = parseFloat(e.target.value);
-});
-
+function wireControls() {
+  const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+  on('spice', 'input', e => { SPICE = parseFloat(e.target.value); persist(); });
+  on('scale', 'input', e => { userScale = parseFloat(e.target.value); draw(); persist(); });
+  on('paper-sel', 'change', e => { paper = e.target.value; draw(); persist(); });
+  on('L-count', 'input', e => { layer.count = parseInt(e.target.value); draw(); persist(); });
+  on('L-angle', 'input', e => { layer.angle = parseFloat(e.target.value); draw(); persist(); });
+  on('L-spread', 'input', e => { layer.spread = parseFloat(e.target.value); draw(); persist(); });
+  on('L-rot', 'input', e => { layer.rot = parseFloat(e.target.value); draw(); persist(); });
+  on('L-scalestep', 'input', e => { layer.scaleStep = parseFloat(e.target.value); draw(); persist(); });
+  on('L-jit', 'input', e => { layer.jit = parseFloat(e.target.value); draw(); persist(); });
+  on('L-scale', 'input', e => { layer.scale = parseFloat(e.target.value); draw(); persist(); });
+  on('L-opacity', 'input', e => { layer.opacity = parseFloat(e.target.value); draw(); persist(); });
+  on('L-blend', 'change', e => { layer.blend = e.target.value; draw(); persist(); });
+  on('L-arrange', 'change', e => { layer.arrange = e.target.value; draw(); persist(); });
+  on('G-rows', 'input', e => { gridRows = parseInt(e.target.value); draw(); persist(); });
+  on('G-cols', 'input', e => { gridCols = parseInt(e.target.value); draw(); persist(); });
+  on('G-gap', 'input', e => { gridGap = parseFloat(e.target.value); draw(); persist(); });
+  on('G-fill', 'input', e => { gridFill = parseFloat(e.target.value); draw(); persist(); });
+  on('A-type', 'change', e => { anim.type = e.target.value; persist(); });
+  on('A-speed', 'input', e => { anim.speed = parseFloat(e.target.value); persist(); });
+  on('OP-offx', 'input', e => { overprint.offX = parseFloat(e.target.value); draw(); persist(); });
+  on('OP-offy', 'input', e => { overprint.offY = parseFloat(e.target.value); draw(); persist(); });
+}
 // ---- RANDOM GENERATOR ----
 // recursive expression grammar, weighted productions, seedable PRNG, spice, personalities, themes, crossover
 
@@ -832,6 +1182,29 @@ const SHAPES = [
     for (let i = 0; i < n; i++) core = maybe(0.5) ? `\\overset{${atom()}}{${core}}` : `\\underset{${atom()}}{${core}}`;
     return core;
   }},
+  { name: 'glyph lattice', fn: () => {
+    const r = rnd(5, 8), c = rnd(5, 9), t = pick(MTYPES);
+    let body = '';
+    for (let i = 0; i < r; i++) { body += Array(c).fill(null).map(() => atom()).join(' & '); if (i < r-1) body += ' \\\\ '; }
+    return `\\begin{${t}} ${body} \\end{${t}}`;
+  }},
+  { name: 'operator wall', fn: () => {
+    const op = pick(['\\oint','\\iint','\\iiint','\\int','\\sum','\\prod','\\bigotimes']);
+    const rows = rnd(3, 6);
+    let lines = [];
+    for (let i = 0; i < rows; i++) lines.push(rep(op, rnd(6, 14)));
+    return `\\begin{matrix} ${lines.join(' \\\\ ')} \\end{matrix}`;
+  }},
+  { name: 'delimiter abyss', fn: () => {
+    function dN(d) { if (d <= 0) return expr(depth(3)); const [l,r] = pick(DELIMPAIRS); return `${l} ${dN(d-1)} ${r}`; }
+    return dN(depth(rnd(6, 12)));
+  }},
+  { name: 'tensor field', fn: () => {
+    const r = rnd(3, 5), c = rnd(3, 5);
+    let body = '';
+    for (let i = 0; i < r; i++) { body += Array(c).fill(null).map(() => `{${atom()}}_{${atom()}}^{${atom()}}`).join(' & '); if (i < r-1) body += ' \\\\ '; }
+    return `\\begin{bmatrix} ${body} \\end{bmatrix}`;
+  }},
 ];
 
 // selected algorithm: null = random, otherwise the SHAPES entry name.
@@ -955,70 +1328,148 @@ updateSeedDisplay();
   sel.addEventListener('change', e => { selectedAlgo = e.target.value || null; });
 })();
 
-// ---- UTILITY BUTTONS ----
-function flash(msg) { status.textContent = msg; setTimeout(() => render(), 1400); }
-function clearAll()   { editor.value=''; preview.innerHTML=''; status.textContent=''; }
-function copySource() { navigator.clipboard.writeText(editor.value).then(() => flash('⎘')); }
-function printView()  { window.print(); }
-function toggleFs()   {
-  document.body.classList.toggle('fs');
-  fsbtn.textContent = document.body.classList.contains('fs') ? '⤡' : '⤢';
+// ==================== UTILITY BUTTONS ====================
+function stamp() { return Date.now().toString(36); }
+function flash(msg) { status.textContent = msg; setTimeout(() => { status.textContent = currentBlocks.length || ''; }, 1200); }
+
+function clearAll() {
+  pushHistory();
+  editor.value = '';
+  currentBlocks = [];
+  draw();
+  status.textContent = '';
+  persist();
 }
+function copySource() { navigator.clipboard.writeText(editor.value).then(() => flash('⎘')); }
 function saveTxt() {
-  const b = new Blob([editor.value], {type:'text/plain'});
+  const b = new Blob([editor.value], { type: 'text/plain' });
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(b); a.download = `bm-${Date.now()}.txt`; a.click();
+  a.href = URL.createObjectURL(b); a.download = 'bm-' + stamp() + '.txt'; a.click();
   flash('↓');
 }
 
-function exportSvg() {
-  const blocks = preview.querySelectorAll('.block');
-  if (!blocks.length) return;
+// ---- raster the current composition onto an offscreen sheet at given dpi ----
+function rasterSheet(dpi) {
+  const { win, hin } = paperDims();
+  const pw = Math.max(1, Math.round(win * dpi)), ph = Math.max(1, Math.round(hin * dpi));
+  const pc = document.createElement('canvas');
+  pc.width = pw; pc.height = ph;
+  const pctx = pc.getContext('2d');
+  composeTo(pctx, pw, ph);
+  if (thermal) threshold1bit(pctx, pw, ph);
+  return pc;
+}
 
-  // capture the preview pane's actual rendered dimensions so the SVG matches what's on screen.
-  const rect = preview.getBoundingClientRect();
-  const W = Math.max(400, Math.ceil(rect.width));
-  const pad = 24;
-
-  // inject the full KaTeX stylesheet so glyphs render in standalone viewers.
-  let css = '';
-  for (const sheet of document.styleSheets) {
-    if (sheet.href && sheet.href.includes('katex')) {
-      try { css = Array.from(sheet.cssRules).map(r => r.cssText).join('\n'); } catch(e) {}
-    }
+function threshold1bit(c, W, H) {
+  const d = c.getImageData(0, 0, W, H), p = d.data;
+  for (let i = 0; i < p.length; i += 4) {
+    const lum = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2];
+    const bw = lum < 128 ? 0 : 255;
+    p[i] = p[i + 1] = p[i + 2] = bw; p[i + 3] = 255;
   }
-  const ks = (getComputedStyle(document.documentElement).getPropertyValue('--ks').trim() || '1em');
-  const bg = modeInvert ? '#111' : '#f5f3ee';
-  const ink = modeInvert ? '#eee' : '#111';
-  const ruleColor = modeInvert ? '#222' : '#e0ddd8';
+  c.putImageData(d, 0, 0);
+}
 
-  let y = pad, parts = '';
-  blocks.forEach(b => {
-    const br = b.getBoundingClientRect();
-    const h = Math.max(40, Math.ceil(br.height));
-    parts += `<foreignObject x="${pad}" y="${y}" width="${W - pad * 2}" height="${h}">
-      <div xmlns="http://www.w3.org/1999/xhtml" class="bm-block" style="text-align:center;color:${ink};${modeInvert ? 'filter:invert(1);' : ''}">
-        ${b.innerHTML}
-      </div></foreignObject>
-    <line x1="${pad}" y1="${y + h + 4}" x2="${W - pad}" y2="${y + h + 4}" stroke="${ruleColor}" stroke-width="0.5"/>`;
-    y += h + 12;
+function exportPng() {
+  const pc = rasterSheet(300);
+  pc.toBlob(b => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b); a.download = 'bm-' + stamp() + '.png'; a.click();
   });
-  const H = y + pad;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-<defs><style>
-${css}
-.bm-block .katex { font-size: ${ks} !important; }
-.bm-block svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
-</style></defs>
-<rect width="${W}" height="${H}" fill="${bg}"/>
-${parts}</svg>`;
+  flash('▣');
+}
+
+// ---- vector svg export : compose cached block svgs with transforms ----
+function nsInner(inner, pfx) {
+  return inner
+    .replace(/id="([^"]+)"/g, 'id="' + pfx + '$1"')
+    .replace(/href="#([^"]+)"/g, 'href="#' + pfx + '$1"')
+    .replace(/xlink:href="#([^"]+)"/g, 'xlink:href="#' + pfx + '$1"')
+    .replace(/url\(#([^)]+)\)/g, 'url(#' + pfx + '$1)');
+}
+function buildSvg(W, H) {
+  const sg = g, sGW = GW, sGH = GH;
+  RECORD = true; recPlacements = []; GW = W; GH = H;
+  compose();
+  RECORD = false; g = sg; GW = sGW; GH = sGH;
+
+  const placements = recPlacements.filter(p => !p.mark);
+  const marks = recPlacements.filter(p => p.mark);
+  const uniq = [...new Set(placements.map(p => p.b))];
+  const idOf = new Map(); uniq.forEach((b, i) => idOf.set(b, 'b' + i));
+  const defs = uniq.map(b => {
+    const id = idOf.get(b);
+    return '<symbol id="' + id + '" viewBox="' + b.vb + '" overflow="visible">' + nsInner(b.inner, id + '-') + '</symbol>';
+  }).join('');
+  const body = placements.map(p => {
+    const id = idOf.get(p.b);
+    const cx = (p.x + p.w / 2).toFixed(2), cy = (p.y + p.h / 2).toFixed(2);
+    const tf = p.rot ? ' transform="rotate(' + p.rot.toFixed(3) + ' ' + cx + ' ' + cy + ')"' : '';
+    const bl = p.blend !== 'source-over' ? 'mix-blend-mode:' + BLEND_LABEL[p.blend] + ';' : '';
+    return '<use href="#' + id + '" x="' + p.x.toFixed(2) + '" y="' + p.y.toFixed(2) +
+           '" width="' + p.w.toFixed(2) + '" height="' + p.h.toFixed(2) + '" opacity="' + p.alpha + '" style="' + bl + '"' + tf + '/>';
+  }).join('');
+  const markStr = marks.map(p =>
+    '<path d="M ' + p.x + ' ' + (p.y + p.sy * p.m) + ' L ' + p.x + ' ' + p.y + ' L ' + (p.x + p.sx * p.m) + ' ' + p.y +
+    '" stroke="' + p.col + '" stroke-width="' + p.lw + '" fill="none" opacity="0.8"/>'
+  ).join('');
+  const gt = 'translate(' + (W / 2) + ' ' + (H / 2) + ') rotate(' + rotation + ') scale(' + (mirrorH ? -1 : 1) + ' ' + (mirrorV ? -1 : 1) + ') translate(' + (-W / 2) + ' ' + (-H / 2) + ')' +
+    (overprint.on ? ' translate(' + (overprint.offX / 100 * W) + ' ' + (overprint.offY / 100 * H) + ')' : '');
+  const inner = invert ? '<g style="filter:invert(1)">' + body + '</g>' : body;
+  return '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">\n' +
+    '<defs>' + defs + '</defs>\n' +
+    '<rect width="' + W + '" height="' + H + '" fill="' + bgColor() + '"/>\n' +
+    '<g transform="' + gt + '">' + inner + '</g>\n' + markStr + '\n</svg>';
+}
+function exportSvg() {
+  const { win, hin } = paperDims();
+  const W = Math.round(win * 96), H = Math.round(hin * 96);
+  const svg = buildSvg(W, H);
   const blob = new Blob([svg], { type: 'image/svg+xml' });
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = `bm-${Date.now()}.svg`; a.click();
+  a.href = URL.createObjectURL(blob); a.download = 'bm-' + stamp() + '.svg'; a.click();
   flash('▱');
 }
 
-window.addEventListener('load', () => { editor.value = SEED; render(); });
+// ---- print : single sheet-sized raster + matching @page ----
+function setPageStyle(win, hin) {
+  let s = document.getElementById('page-style');
+  if (!s) { s = document.createElement('style'); s.id = 'page-style'; document.head.appendChild(s); }
+  s.textContent = '@page { size: ' + win.toFixed(3) + 'in ' + hin.toFixed(3) + 'in; margin: 0; }';
+}
+function printView() {
+  const { win, hin } = paperDims();
+  const dpi = thermal ? 203 : 300;
+  const pc = rasterSheet(dpi);
+  const img = document.querySelector('#print-layer img');
+  img.onload = () => setTimeout(() => window.print(), 50);
+  img.src = pc.toDataURL('image/png');
+  setPageStyle(win, hin);
+}
+
+function toggleFs() {
+  document.body.classList.toggle('fs');
+  fsbtn.textContent = document.body.classList.contains('fs') ? '⤡' : '⤢';
+  setTimeout(draw, 60);
+}
+
+// ==================== INIT ====================
+function init() {
+  wireControls();
+  const hadText = restore();
+  if (!hadText && !editor.value.trim()) editor.value = SEED;
+  syncUI();
+  updateSeedDisplay();
+  if (mode === 'animate') startAnim();
+  render();
+  let rt = null;
+  new ResizeObserver(() => {
+    clearTimeout(rt);
+    rt = setTimeout(() => { if (mode !== 'animate') draw(); }, 80);
+  }).observe(canvas.parentElement);
+  window.addEventListener('resize', () => { if (mode !== 'animate') draw(); });
+}
+window.addEventListener('load', init);
 </script>
 </body>
 </html>
