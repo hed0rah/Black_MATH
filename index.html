@@ -289,7 +289,7 @@ const PAPERS = {
 };
 const BLENDS = ['darken','multiply','source-over','screen','lighten'];
 const BLEND_LABEL = { 'darken':'darken','multiply':'multiply','source-over':'normal','screen':'screen','lighten':'lighten' };
-const ANIM_TYPES = ['drift','swarm','wave','pulse','breathe','spin','sweep','orbit','accrete'];
+const ANIM_TYPES = ['drift','swarm','wave','gravity','explode','orbit','sweep','spin','pulse','breathe','grow','accrete'];
 const ARRANGES = ['linear','radial','scatter'];
 
 // ---- presentation state (persisted) ----
@@ -697,9 +697,17 @@ function drawAnimate(blocks, W, H) {
       else { x += Math.cos(t * 0.7 + ph) * rr; y += Math.sin(t * 0.9 + ph) * rr; rot += t * 20; }
     }
     if (has('wave')) { y += Math.sin((loop ? t : t * 0.7) + i * 0.45) * H * 0.06; }
+    if (has('gravity')) { y += Math.abs(Math.sin((loop ? t : t * 0.8) + ph)) * H * 0.16; }
+    if (has('explode')) {
+      const ea = hash01(i * 9 + 3) * TAU;
+      const ed = (0.5 - 0.5 * Math.cos(loop ? t : t * 0.6)) * Math.min(W, H) * 0.55;
+      x += Math.cos(ea) * ed; y += Math.sin(ea) * ed;
+      rot += (ed / (Math.min(W, H) * 0.55)) * jrand(i) * 60;
+    }
     // scale
     if (has('pulse')) { s *= 1 + 0.25 * Math.sin(t + ph); }
     if (has('breathe')) { s *= 1 + 0.20 * Math.sin(loop ? t : t * 0.5); }
+    if (has('grow')) { s *= 0.1 + 0.9 * (0.5 - 0.5 * Math.cos((loop ? t : t * 0.6) + i * 0.5)); }
     // rotation
     if (has('spin')) { rot += loop ? (t / TAU) * 360 : t * 30; }
     // whole-arrangement transforms, after offsets
