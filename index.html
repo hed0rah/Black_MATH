@@ -69,6 +69,10 @@ body.op-on .grp-op { display: flex; }
 body.tint-on .subbar { display: flex; }
 body.tint-on .grp-tint { display: flex; }
 input[type=color] { width: 20px; height: 14px; border: 1px solid var(--rule); background: none; padding: 0; cursor: pointer; }
+.chips { display: inline-flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
+.chip { font-family: 'Space Mono', monospace; font-size: 0.55rem; color: var(--dim); background: none; border: 1px solid var(--rule); padding: 1px 4px; cursor: pointer; letter-spacing: 0.03em; }
+.chip:hover { color: var(--ink); border-color: var(--ink); }
+.chip.on { color: var(--ink); border-color: var(--ink); background: rgba(0,0,0,0.05); }
 .modes-sep { width: 1px; height: 12px; background: var(--rule); }
 
 /* ---- buttons (shared) ---- */
@@ -234,7 +238,7 @@ body.fs .pane-edit, body.fs .divider { display: none; }
     <span class="lbl">fill</span> <input type="range" id="G-fill" min="0.3" max="1.8" step="0.02" value="0.92">
   </div>
   <div class="grp grp-anim">
-    <span class="lbl">motion</span>  <select id="A-type" class="sel"></select>
+    <span class="lbl">motion</span>  <span id="A-motions" class="chips"></span>
     <span class="lbl">speed</span>   <input type="range" id="A-speed" min="0.1" max="4" step="0.1" value="1">
     <button class="mbtn" id="btn-loop"  onclick="toggleAnimLoop()"  title="perfect-loop mode (off = long evolving)">⟳</button>
     <button class="mbtn" id="btn-pause" onclick="toggleAnimPause()" title="pause / resume">⏸</button>
@@ -285,7 +289,7 @@ const PAPERS = {
 };
 const BLENDS = ['darken','multiply','source-over','screen','lighten'];
 const BLEND_LABEL = { 'darken':'darken','multiply':'multiply','source-over':'normal','screen':'screen','lighten':'lighten' };
-const ANIM_TYPES = ['drift','accrete','pulse','swarm','spin','sweep'];
+const ANIM_TYPES = ['drift','swarm','wave','pulse','breathe','spin','sweep','orbit','accrete'];
 const ARRANGES = ['linear','radial','scatter'];
 
 // ---- presentation state (persisted) ----
@@ -303,7 +307,7 @@ let gridCols    = 2;
 let gridGap     = 0;      // % of cell; negative pushes cells together / overlaps
 let gridFill    = 0.92;   // how much of each cell the content fills (>1 bleeds)
 let layer       = { count: 24, angle: 56, spread: 6, rot: 0, scaleStep: 1, jit: 0.4, scale: 0.7, opacity: 1, blend: 'darken', arrange: 'linear', nearClip: 0 };
-let anim        = { type: 'drift', speed: 1, loop: false };
+let anim        = { motions: ['drift'], speed: 1, loop: false };
 let overprint   = { on: false, marks: true, offX: 0, offY: 0 };
 let viewport    = { zoom: 1, panX: 0, panY: 0 };   // camera over the whole composition
 let tint        = { on: false, c1: '#d83a2b', c2: '#1f6fb2', amount: 0.25 };
@@ -665,33 +669,48 @@ let animT = 0, animRAF = null, animPaused = false;
 // two regimes. loop on: every motion is 2pi-periodic in animT, so it seams into
 // a perfect loop and record captures one period. loop off (default): mixed
 // frequencies + unbounded rotation give long, non-repeating evolving motion.
+// motions are composable: each selected one adds its perturbation on top of the
+// base arrangement, so any combination works (spin + pulse, drift + orbit, ...).
+// in loop mode every motion is 2pi-periodic, so combinations still loop cleanly.
 function drawAnimate(blocks, W, H) {
   const L = layer, t = animT, cx = W / 2, cy = H / 2, blend = adjBlend(L.blend);
   const loop = anim.loop, TAU = Math.PI * 2;
+  const has = m => anim.motions.indexOf(m) !== -1;
   let count = L.count;
-  if (anim.type === 'accrete') count = loop
+  if (has('accrete')) count = loop
     ? Math.max(1, Math.round((0.5 - 0.5 * Math.cos(t)) * L.count))
     : Math.max(1, Math.floor((Math.sin(t * 0.3) * 0.5 + 0.5) * L.count) + 1);
+  const twist = has('spin') ? (loop ? t : t * 0.3) : 0;
   for (let i = 0; i < count; i++) {
     const b = blocks[i % blocks.length];
-    const twist = anim.type === 'spin' ? (loop ? t : t * 0.3) : 0;
     const base = layerXform(i, count, b, W, H, twist);
     let s = base.s, x = base.x, y = base.y, rot = base.rot;
     const ph = i * 0.6;
-    if (anim.type === 'drift') {
+    // position offsets
+    if (has('drift')) {
       if (loop) { x += Math.cos(t + ph) * W * 0.10; y += Math.sin(t + ph) * H * 0.10; rot += Math.sin(t + ph) * 14; }
       else { x += Math.cos(t * 0.5 + ph) * W * 0.10; y += Math.sin(t * 0.4 + ph * 1.3) * H * 0.10; rot += t * 8; }
-    } else if (anim.type === 'pulse') {
-      s *= 1 + 0.25 * Math.sin(t + ph);
-    } else if (anim.type === 'swarm') {
+    }
+    if (has('swarm')) {
       const rr = 30 + i * 2;
       if (loop) { x += Math.cos(t + ph) * rr; y += Math.sin(t + ph) * rr; rot += Math.sin(2 * t + ph) * 26; }
       else { x += Math.cos(t * 0.7 + ph) * rr; y += Math.sin(t * 0.9 + ph) * rr; rot += t * 20; }
-    } else if (anim.type === 'spin') {
-      rot += loop ? (t / TAU) * 360 : t * 30;
-    } else if (anim.type === 'sweep') {
-      if (loop) { const k = 1 + Math.sin(t) * 0.8; x = cx + (x - cx) * k; y = cy + (y - cy) * k; }
-      else { const k = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 0.6)); x = cx + (x - cx) * k * 2; y = cy + (y - cy) * k * 2; }
+    }
+    if (has('wave')) { y += Math.sin((loop ? t : t * 0.7) + i * 0.45) * H * 0.06; }
+    // scale
+    if (has('pulse')) { s *= 1 + 0.25 * Math.sin(t + ph); }
+    if (has('breathe')) { s *= 1 + 0.20 * Math.sin(loop ? t : t * 0.5); }
+    // rotation
+    if (has('spin')) { rot += loop ? (t / TAU) * 360 : t * 30; }
+    // whole-arrangement transforms, after offsets
+    if (has('sweep')) {
+      const k = loop ? (1 + Math.sin(t) * 0.8) : (0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 0.6))) * 2;
+      x = cx + (x - cx) * k; y = cy + (y - cy) * k;
+    }
+    if (has('orbit')) {
+      const a = loop ? t : t * 0.5, ca = Math.cos(a), sa = Math.sin(a);
+      const ox = x - cx, oy = y - cy;
+      x = cx + ox * ca - oy * sa; y = cy + ox * sa + oy * ca;
     }
     const w = b.w * s, h = b.h * s;
     if (nearClipped(w, h, W, H)) continue;
@@ -750,6 +769,21 @@ function toggleTint() {
 function toggleAnimLoop() {
   anim.loop = !anim.loop;
   document.getElementById('btn-loop').classList.toggle('on', anim.loop);
+  persist();
+}
+
+// motion chips: toggle any subset of motions on/off; they compose.
+function buildMotionChips() {
+  const host = document.getElementById('A-motions');
+  if (!host) return;
+  host.innerHTML = ANIM_TYPES.map(m =>
+    '<button class="chip' + (anim.motions.indexOf(m) !== -1 ? ' on' : '') + '" onclick="toggleMotion(\'' + m + '\')">' + m + '</button>'
+  ).join('');
+}
+function toggleMotion(m) {
+  const idx = anim.motions.indexOf(m);
+  if (idx === -1) anim.motions.push(m); else anim.motions.splice(idx, 1);
+  buildMotionChips();
   persist();
 }
 
@@ -928,7 +962,10 @@ function restore() {
     gridRows = s.gridRows || 2; gridCols = s.gridCols || 2;
     gridGap = s.gridGap || 0; gridFill = s.gridFill || 0.92;
     if (s.layer) Object.assign(layer, s.layer);
-    if (s.anim) Object.assign(anim, s.anim);
+    if (s.anim) {
+      Object.assign(anim, s.anim);
+      if (!Array.isArray(anim.motions)) anim.motions = s.anim.type ? [s.anim.type] : ['drift'];
+    }
     if (s.overprint) Object.assign(overprint, s.overprint);
     if (s.viewport) Object.assign(viewport, s.viewport);
     if (s.tint) Object.assign(tint, s.tint);
@@ -1001,7 +1038,7 @@ function syncUI() {
   fillSelect('paper-sel', Object.keys(PAPERS), paper, k => PAPERS[k].label);
   fillSelect('L-blend', BLENDS, layer.blend, v => BLEND_LABEL[v]);
   fillSelect('L-arrange', ARRANGES, layer.arrange);
-  fillSelect('A-type', ANIM_TYPES, anim.type);
+  buildMotionChips();
 }
 
 function wireControls() {
@@ -1024,7 +1061,6 @@ function wireControls() {
   on('G-cols', 'input', e => { gridCols = parseInt(e.target.value); draw(); persist(); });
   on('G-gap', 'input', e => { gridGap = parseFloat(e.target.value); draw(); persist(); });
   on('G-fill', 'input', e => { gridFill = parseFloat(e.target.value); draw(); persist(); });
-  on('A-type', 'change', e => { anim.type = e.target.value; persist(); });
   on('A-speed', 'input', e => { anim.speed = parseFloat(e.target.value); persist(); });
   on('OP-offx', 'input', e => { overprint.offX = parseFloat(e.target.value); draw(); persist(); });
   on('OP-offy', 'input', e => { overprint.offY = parseFloat(e.target.value); draw(); persist(); });
