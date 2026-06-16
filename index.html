@@ -8,10 +8,10 @@
 // mathjax is the single renderer. fontCache 'local' makes every block's svg
 // self-contained (own glyph paths) so it rasterizes standalone on a canvas.
 window.MathJax = {
-  loader: { load: ['[tex]/cancel', '[tex]/enclose', '[tex]/boldsymbol'] },
+  loader: { load: ['[tex]/cancel', '[tex]/enclose', '[tex]/boldsymbol', '[tex]/unicode'] },
   tex: {
     inlineMath: [], displayMath: [],
-    packages: { '[+]': ['cancel', 'enclose', 'boldsymbol'] },
+    packages: { '[+]': ['cancel', 'enclose', 'boldsymbol', 'unicode'] },
     macros: { oiint: '\\unicode{x222F}', oiiint: '\\unicode{x2230}' }
   },
   svg: { fontCache: 'local', displayAlign: 'center', exFactor: 0.5 },
@@ -66,6 +66,9 @@ body[data-mode="animate"] .grp-anim { display: flex; }
 body[data-mode="tile"] .grp-grid,
 body[data-mode="columns"] .grp-grid { display: flex; }
 body.op-on .grp-op { display: flex; }
+body.tint-on .subbar { display: flex; }
+body.tint-on .grp-tint { display: flex; }
+input[type=color] { width: 20px; height: 14px; border: 1px solid var(--rule); background: none; padding: 0; cursor: pointer; }
 .modes-sep { width: 1px; height: 12px; background: var(--rule); }
 
 /* ---- buttons (shared) ---- */
@@ -186,6 +189,7 @@ body.fs .pane-edit, body.fs .divider { display: none; }
   <button class="mbtn" id="btn-rot"     onclick="cycleRotate()"     title="rotate 90°">↻</button>
   <span   class="mval" id="val-rot" style="display:none">90</span>
   <button class="mbtn" id="btn-thermal" onclick="toggleThermal()"   title="thermal 1-bit">◧</button>
+  <button class="mbtn" id="btn-tint"    onclick="toggleTint()"      title="accent color">◓</button>
   <button class="mbtn" id="btn-op"      onclick="toggleOverprint()" title="overprint marks/offset">⊹</button>
   <div class="modes-sep"></div>
   <!-- generator -->
@@ -221,6 +225,7 @@ body.fs .pane-edit, body.fs .divider { display: none; }
     <span class="lbl">scale</span>    <input type="range" id="L-scale"     min="0.05" max="3"   step="0.02"  value="0.7">
     <span class="lbl">opacity</span>  <input type="range" id="L-opacity"   min="0.05" max="1"   step="0.01"  value="1">
     <span class="lbl">blend</span>    <select id="L-blend" class="sel"></select>
+    <span class="lbl">near clip</span><input type="range" id="L-nearclip" min="0" max="1" step="0.02" value="0">
   </div>
   <div class="grp grp-grid">
     <span class="lbl">rows</span> <input type="range" id="G-rows" min="1"   max="12"  step="1"    value="2">
@@ -232,11 +237,17 @@ body.fs .pane-edit, body.fs .divider { display: none; }
     <span class="lbl">motion</span>  <select id="A-type" class="sel"></select>
     <span class="lbl">speed</span>   <input type="range" id="A-speed" min="0.1" max="4" step="0.1" value="1">
     <button class="mbtn" id="btn-pause" onclick="toggleAnimPause()" title="pause / resume">⏸</button>
+    <button class="mbtn" id="btn-rec"   onclick="startLoopRecord()" title="record one perfect loop (webm)">⏺</button>
   </div>
   <div class="grp grp-op">
     <span class="lbl">marks</span>  <button class="mbtn on" id="btn-marks" onclick="toggleMarks()" title="registration marks">✛</button>
     <span class="lbl">pass x</span> <input type="range" id="OP-offx" min="-30" max="30" step="0.5" value="0">
     <span class="lbl">pass y</span> <input type="range" id="OP-offy" min="-30" max="30" step="0.5" value="0">
+  </div>
+  <div class="grp grp-tint">
+    <span class="lbl">color a</span> <input type="color" id="T-c1" value="#d83a2b">
+    <span class="lbl">color b</span> <input type="color" id="T-c2" value="#1f6fb2">
+    <span class="lbl">amount</span>  <input type="range" id="T-amt" min="0" max="1" step="0.02" value="0.25">
   </div>
 </div>
 
@@ -290,10 +301,11 @@ let gridRows    = 2;
 let gridCols    = 2;
 let gridGap     = 0;      // % of cell; negative pushes cells together / overlaps
 let gridFill    = 0.92;   // how much of each cell the content fills (>1 bleeds)
-let layer       = { count: 24, angle: 56, spread: 6, rot: 0, scaleStep: 1, jit: 0.4, scale: 0.7, opacity: 1, blend: 'darken', arrange: 'linear' };
+let layer       = { count: 24, angle: 56, spread: 6, rot: 0, scaleStep: 1, jit: 0.4, scale: 0.7, opacity: 1, blend: 'darken', arrange: 'linear', nearClip: 0 };
 let anim        = { type: 'drift', speed: 1 };
 let overprint   = { on: false, marks: true, offX: 0, offY: 0 };
 let viewport    = { zoom: 1, panX: 0, panY: 0 };   // camera over the whole composition
+let tint        = { on: false, c1: '#d83a2b', c2: '#1f6fb2', amount: 0.25 };
 let printCount  = 0;                               // prints sent this session
 
 // ---- compositor scratch ----
@@ -381,6 +393,34 @@ function invVariant(b) {
   return b._inv;
 }
 
+// colored variant: recolor the black ink to an accent via source-in. cached per color.
+function tintVariant(b, color) {
+  b._tints = b._tints || {};
+  if (b._tints[color]) return b._tints[color];
+  const c = document.createElement('canvas');
+  c.width = b.w; c.height = b.h;
+  const x = c.getContext('2d');
+  x.drawImage(b.img, 0, 0);
+  x.globalCompositeOperation = 'source-in';
+  x.fillStyle = color;
+  x.fillRect(0, 0, b.w, b.h);
+  b._tints[color] = c;
+  return c;
+}
+
+// accent assignment: a seed-stable subset of instances gets color a or b.
+function tintFor(i) {
+  if (!tint.on || tint.amount <= 0) return null;
+  if (hash01(i * 7 + 99) >= tint.amount) return null;
+  return hash01(i * 13 + 5) < 0.5 ? tint.c1 : tint.c2;
+}
+
+// declutter the foreground: drop whatever is biggest / nearest the camera.
+function nearClipped(w, h, W, H) {
+  if (!layer.nearClip) return false;
+  return Math.max(w, h) > (1.5 - 1.2 * layer.nearClip) * Math.min(W, H);
+}
+
 // ---- render : rebuild cache for current blocks, then draw ----
 let renderToken = 0;
 async function render() {
@@ -459,8 +499,8 @@ function blit(b, x, y, w, h, opt) {
   const alpha = opt.alpha == null ? 1 : opt.alpha;
   const blend = opt.blend || 'source-over';
   const rot = opt.rot || 0;
-  if (RECORD) { recPlacements.push({ b, x, y, w, h, alpha, blend, rot }); return; }
-  const src = invert ? invVariant(b) : b.img;
+  if (RECORD) { recPlacements.push({ b, x, y, w, h, alpha, blend, rot, tint: opt.tint }); return; }
+  const src = opt.tint ? tintVariant(b, opt.tint) : (invert ? invVariant(b) : b.img);
   g.save();
   g.globalAlpha = alpha;
   g.globalCompositeOperation = blend;
@@ -531,9 +571,9 @@ function drawStackInRect(blocks, x, y, w, h, fill) {
   const maxH = h * (fill > 1 ? fill : 1);
   const shrink = total > maxH ? maxH / total : 1;
   let cy = y + (h - total * shrink) / 2;
-  items.forEach(it => {
+  items.forEach((it, i) => {
     const dw = it.dw * shrink, dh = it.dh * shrink;
-    blit(it.b, x + (w - dw) / 2, cy, dw, dh, { blend: adjBlend('source-over') });
+    blit(it.b, x + (w - dw) / 2, cy, dw, dh, { blend: adjBlend('source-over'), tint: tintFor(i) });
     cy += dh + gap * shrink;
   });
 }
@@ -572,7 +612,7 @@ function drawPoster(blocks, W, H) {
   const pad = Math.min(W, H) * 0.04;
   const s = Math.min((W - pad * 2) / b.w, (H - pad * 2) / b.h) * Math.min(1.4, userScale);
   const w = b.w * s, h = b.h * s;
-  blit(b, (W - w) / 2, (H - h) / 2, w, h, { blend: adjBlend('source-over') });
+  blit(b, (W - w) / 2, (H - h) / 2, w, h, { blend: adjBlend('source-over'), tint: tintFor(0) });
 }
 
 // ---- the layer engine : arrangement (linear / radial / scatter) + density ----
@@ -614,35 +654,40 @@ function drawOverlap(blocks, W, H) {
     const b = blocks[i % blocks.length];
     const t = layerXform(i, L.count, b, W, H, 0);
     const w = b.w * t.s, h = b.h * t.s;
-    blit(b, t.x - w / 2, t.y - h / 2, w, h, { alpha: L.opacity, blend, rot: t.rot });
+    if (nearClipped(w, h, W, H)) continue;
+    blit(b, t.x - w / 2, t.y - h / 2, w, h, { alpha: L.opacity, blend, rot: t.rot, tint: tintFor(i) });
   }
 }
 
 // ---- animation : motion variants, current frame is what prints ----
 let animT = 0, animRAF = null, animPaused = false;
-// animation builds on the layer arrangement, then perturbs it over time.
+// every motion is 2pi-periodic in animT, so the animation seams into a perfect
+// loop. recording captures exactly one period (animT 0 -> 2pi).
 function drawAnimate(blocks, W, H) {
-  const L = layer, t = animT, cx = W / 2, cy = H / 2, blend = adjBlend(L.blend);
+  const L = layer, p = animT, cx = W / 2, cy = H / 2, blend = adjBlend(L.blend);
+  const TAU = Math.PI * 2;
   let count = L.count;
-  if (anim.type === 'accrete') count = Math.max(1, Math.floor((Math.sin(t * 0.3) * 0.5 + 0.5) * L.count) + 1);
+  if (anim.type === 'accrete') count = Math.max(1, Math.round((0.5 - 0.5 * Math.cos(p)) * L.count));
   for (let i = 0; i < count; i++) {
     const b = blocks[i % blocks.length];
-    const base = layerXform(i, count, b, W, H, anim.type === 'spin' ? t * 0.3 : 0);
+    const base = layerXform(i, count, b, W, H, anim.type === 'spin' ? p : 0);
     let s = base.s, x = base.x, y = base.y, rot = base.rot;
     const ph = i * 0.6;
-    if (anim.type === 'drift') { x += Math.cos(t * 0.5 + ph) * W * 0.10; y += Math.sin(t * 0.4 + ph * 1.3) * H * 0.10; rot += t * 8; }
-    else if (anim.type === 'pulse') { s *= 1 + 0.25 * Math.sin(t + ph); }
-    else if (anim.type === 'swarm') { const rr = 30 + i * 2; x += Math.cos(t * 0.7 + ph) * rr; y += Math.sin(t * 0.9 + ph) * rr; rot += t * 20; }
-    else if (anim.type === 'spin') { rot += t * 30; }
-    else if (anim.type === 'sweep') { const k = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 0.6)); x = cx + (x - cx) * k * 2; y = cy + (y - cy) * k * 2; }
+    if (anim.type === 'drift') { x += Math.cos(p + ph) * W * 0.10; y += Math.sin(p + ph) * H * 0.10; rot += Math.sin(p + ph) * 14; }
+    else if (anim.type === 'pulse') { s *= 1 + 0.25 * Math.sin(p + ph); }
+    else if (anim.type === 'swarm') { const rr = 30 + i * 2; x += Math.cos(p + ph) * rr; y += Math.sin(p + ph) * rr; rot += Math.sin(2 * p + ph) * 26; }
+    else if (anim.type === 'spin') { rot += (p / TAU) * 360; }
+    else if (anim.type === 'sweep') { const k = 1 + Math.sin(p) * 0.8; x = cx + (x - cx) * k; y = cy + (y - cy) * k; }
     const w = b.w * s, h = b.h * s;
-    blit(b, x - w / 2, y - h / 2, w, h, { alpha: L.opacity, blend, rot });
+    if (nearClipped(w, h, W, H)) continue;
+    blit(b, x - w / 2, y - h / 2, w, h, { alpha: L.opacity, blend, rot, tint: tintFor(i) });
   }
 }
 function animLoop() {
-  if (mode !== 'animate') { animRAF = null; return; }
+  if (mode !== 'animate') { animRAF = null; if (recorder) recorder.stop(); return; }
   if (!animPaused) animT += anim.speed * 0.016;
   draw();
+  if (recWatch && animT >= Math.PI * 2) { recWatch = false; if (recorder) recorder.stop(); }
   animRAF = requestAnimationFrame(animLoop);
 }
 function startAnim() { if (!animRAF) animLoop(); }
@@ -650,6 +695,40 @@ function stopAnim() { if (animRAF) { cancelAnimationFrame(animRAF); animRAF = nu
 function toggleAnimPause() {
   animPaused = !animPaused;
   document.getElementById('btn-pause').textContent = animPaused ? '⏵' : '⏸';
+}
+
+// ---- record one perfect loop of the animation to a webm ----
+let recorder = null, recChunks = [], recWatch = false;
+function startLoopRecord() {
+  if (recorder) { recorder.stop(); return; }            // re-click stops early
+  if (mode !== 'animate') { flash('record in animate'); return; }
+  if (!window.MediaRecorder || !canvas.captureStream) { flash('record unsupported'); return; }
+  let stream;
+  try { stream = canvas.captureStream(30); } catch (e) { flash('record unsupported'); return; }
+  recChunks = [];
+  const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
+  try { recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 16000000 }); }
+  catch (e) { recorder = null; flash('record unsupported'); return; }
+  recorder.ondataavailable = e => { if (e.data && e.data.size) recChunks.push(e.data); };
+  recorder.onstop = () => {
+    const blob = new Blob(recChunks, { type: 'video/webm' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'bm-loop-' + stamp() + '.webm'; a.click();
+    recorder = null; recWatch = false;
+    const btn = document.getElementById('btn-rec'); if (btn) { btn.classList.remove('on'); btn.textContent = '⏺'; }
+    flash('saved webm');
+  };
+  animT = 0; animPaused = false;     // start at a clean loop origin
+  recWatch = true;
+  recorder.start();
+  const btn = document.getElementById('btn-rec'); if (btn) { btn.classList.add('on'); btn.textContent = '⏹'; }
+}
+
+function toggleTint() {
+  tint.on = !tint.on;
+  document.getElementById('btn-tint').classList.toggle('on', tint.on);
+  document.body.classList.toggle('tint-on', tint.on);
+  draw(); persist();
 }
 
 // ---- registration marks ----
@@ -807,7 +886,7 @@ function persist() {
     localStorage.setItem(LS, JSON.stringify({
       text: editor.value, mode, paper, orientation, invert, thermal,
       mirrorH, mirrorV, rotation, scale: userScale, spice: SPICE,
-      gridRows, gridCols, gridGap, gridFill, layer, anim, overprint, viewport, seed: prngSeed
+      gridRows, gridCols, gridGap, gridFill, layer, anim, overprint, viewport, tint, seed: prngSeed
     }));
   } catch (e) {}
 }
@@ -830,6 +909,7 @@ function restore() {
     if (s.anim) Object.assign(anim, s.anim);
     if (s.overprint) Object.assign(overprint, s.overprint);
     if (s.viewport) Object.assign(viewport, s.viewport);
+    if (s.tint) Object.assign(tint, s.tint);
     if (s.seed != null) { prngSeed = s.seed >>> 0; rng = mulberry32(prngSeed); }
     return s.text != null && s.text.trim().length > 0;
   } catch (e) { return false; }
@@ -890,6 +970,11 @@ function syncUI() {
   setRange('L-scale', layer.scale); setRange('L-opacity', layer.opacity); setRange('A-speed', anim.speed);
   setRange('G-rows', gridRows); setRange('G-cols', gridCols); setRange('G-gap', gridGap); setRange('G-fill', gridFill);
   setRange('OP-offx', overprint.offX); setRange('OP-offy', overprint.offY);
+  setRange('L-nearclip', layer.nearClip); setRange('T-amt', tint.amount);
+  const t1 = document.getElementById('T-c1'); if (t1) t1.value = tint.c1;
+  const t2 = document.getElementById('T-c2'); if (t2) t2.value = tint.c2;
+  document.getElementById('btn-tint').classList.toggle('on', tint.on);
+  document.body.classList.toggle('tint-on', tint.on);
   fillSelect('paper-sel', Object.keys(PAPERS), paper, k => PAPERS[k].label);
   fillSelect('L-blend', BLENDS, layer.blend, v => BLEND_LABEL[v]);
   fillSelect('L-arrange', ARRANGES, layer.arrange);
@@ -920,6 +1005,10 @@ function wireControls() {
   on('A-speed', 'input', e => { anim.speed = parseFloat(e.target.value); persist(); });
   on('OP-offx', 'input', e => { overprint.offX = parseFloat(e.target.value); draw(); persist(); });
   on('OP-offy', 'input', e => { overprint.offY = parseFloat(e.target.value); draw(); persist(); });
+  on('L-nearclip', 'input', e => { layer.nearClip = parseFloat(e.target.value); draw(); persist(); });
+  on('T-c1', 'input', e => { tint.c1 = e.target.value; draw(); persist(); });
+  on('T-c2', 'input', e => { tint.c2 = e.target.value; draw(); persist(); });
+  on('T-amt', 'input', e => { tint.amount = parseFloat(e.target.value); draw(); persist(); });
 }
 // ---- RANDOM GENERATOR ----
 // recursive expression grammar, weighted productions, seedable PRNG, spice, personalities, themes, crossover
@@ -1474,9 +1563,10 @@ function buildSvg(W, H) {
     const id = idOf.get(p.b);
     const cx = (p.x + p.w / 2).toFixed(2), cy = (p.y + p.h / 2).toFixed(2);
     const tf = p.rot ? ' transform="rotate(' + p.rot.toFixed(3) + ' ' + cx + ' ' + cy + ')"' : '';
-    const bl = p.blend !== 'source-over' ? 'mix-blend-mode:' + BLEND_LABEL[p.blend] + ';' : '';
+    let st = p.blend !== 'source-over' ? 'mix-blend-mode:' + BLEND_LABEL[p.blend] + ';' : '';
+    if (p.tint) st += 'color:' + p.tint + ';';
     return '<use href="#' + id + '" x="' + p.x.toFixed(2) + '" y="' + p.y.toFixed(2) +
-           '" width="' + p.w.toFixed(2) + '" height="' + p.h.toFixed(2) + '" opacity="' + p.alpha + '" style="' + bl + '"' + tf + '/>';
+           '" width="' + p.w.toFixed(2) + '" height="' + p.h.toFixed(2) + '" opacity="' + p.alpha + '" style="' + st + '"' + tf + '/>';
   }).join('');
   const markStr = marks.map(p =>
     '<path d="M ' + p.x + ' ' + (p.y + p.sy * p.m) + ' L ' + p.x + ' ' + p.y + ' L ' + (p.x + p.sx * p.m) + ' ' + p.y +
@@ -1485,7 +1575,9 @@ function buildSvg(W, H) {
   const vp = 'translate(' + (W / 2) + ' ' + (H / 2) + ') scale(' + viewport.zoom + ') translate(' + (-W / 2 + viewport.panX * W) + ' ' + (-H / 2 + viewport.panY * H) + ') ';
   const gt = vp + 'translate(' + (W / 2) + ' ' + (H / 2) + ') rotate(' + rotation + ') scale(' + (mirrorH ? -1 : 1) + ' ' + (mirrorV ? -1 : 1) + ') translate(' + (-W / 2) + ' ' + (-H / 2) + ')' +
     (overprint.on ? ' translate(' + (overprint.offX / 100 * W) + ' ' + (overprint.offY / 100 * H) + ')' : '');
-  const inner = invert ? '<g style="filter:invert(1)">' + body + '</g>' : body;
+  // ink via currentColor (glyphs are fill="currentColor"); tinted uses override it
+  const ink = thermal ? (invert ? '#fff' : '#000') : (invert ? '#eee' : '#111');
+  const inner = '<g style="color:' + ink + '">' + body + '</g>';
   return '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">\n' +
     '<defs>' + defs + '</defs>\n' +
     '<rect width="' + W + '" height="' + H + '" fill="' + bgColor() + '"/>\n' +
