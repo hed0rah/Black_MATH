@@ -236,8 +236,9 @@ body.fs .pane-edit, body.fs .divider { display: none; }
   <div class="grp grp-anim">
     <span class="lbl">motion</span>  <select id="A-type" class="sel"></select>
     <span class="lbl">speed</span>   <input type="range" id="A-speed" min="0.1" max="4" step="0.1" value="1">
+    <button class="mbtn" id="btn-loop"  onclick="toggleAnimLoop()"  title="perfect-loop mode (off = long evolving)">⟳</button>
     <button class="mbtn" id="btn-pause" onclick="toggleAnimPause()" title="pause / resume">⏸</button>
-    <button class="mbtn" id="btn-rec"   onclick="startLoopRecord()" title="record one perfect loop (webm)">⏺</button>
+    <button class="mbtn" id="btn-rec"   onclick="startLoopRecord()" title="record (one loop in loop mode, else until you stop)">⏺</button>
   </div>
   <div class="grp grp-op">
     <span class="lbl">marks</span>  <button class="mbtn on" id="btn-marks" onclick="toggleMarks()" title="registration marks">✛</button>
@@ -302,7 +303,7 @@ let gridCols    = 2;
 let gridGap     = 0;      // % of cell; negative pushes cells together / overlaps
 let gridFill    = 0.92;   // how much of each cell the content fills (>1 bleeds)
 let layer       = { count: 24, angle: 56, spread: 6, rot: 0, scaleStep: 1, jit: 0.4, scale: 0.7, opacity: 1, blend: 'darken', arrange: 'linear', nearClip: 0 };
-let anim        = { type: 'drift', speed: 1 };
+let anim        = { type: 'drift', speed: 1, loop: false };
 let overprint   = { on: false, marks: true, offX: 0, offY: 0 };
 let viewport    = { zoom: 1, panX: 0, panY: 0 };   // camera over the whole composition
 let tint        = { on: false, c1: '#d83a2b', c2: '#1f6fb2', amount: 0.25 };
@@ -661,23 +662,37 @@ function drawOverlap(blocks, W, H) {
 
 // ---- animation : motion variants, current frame is what prints ----
 let animT = 0, animRAF = null, animPaused = false;
-// every motion is 2pi-periodic in animT, so the animation seams into a perfect
-// loop. recording captures exactly one period (animT 0 -> 2pi).
+// two regimes. loop on: every motion is 2pi-periodic in animT, so it seams into
+// a perfect loop and record captures one period. loop off (default): mixed
+// frequencies + unbounded rotation give long, non-repeating evolving motion.
 function drawAnimate(blocks, W, H) {
-  const L = layer, p = animT, cx = W / 2, cy = H / 2, blend = adjBlend(L.blend);
-  const TAU = Math.PI * 2;
+  const L = layer, t = animT, cx = W / 2, cy = H / 2, blend = adjBlend(L.blend);
+  const loop = anim.loop, TAU = Math.PI * 2;
   let count = L.count;
-  if (anim.type === 'accrete') count = Math.max(1, Math.round((0.5 - 0.5 * Math.cos(p)) * L.count));
+  if (anim.type === 'accrete') count = loop
+    ? Math.max(1, Math.round((0.5 - 0.5 * Math.cos(t)) * L.count))
+    : Math.max(1, Math.floor((Math.sin(t * 0.3) * 0.5 + 0.5) * L.count) + 1);
   for (let i = 0; i < count; i++) {
     const b = blocks[i % blocks.length];
-    const base = layerXform(i, count, b, W, H, anim.type === 'spin' ? p : 0);
+    const twist = anim.type === 'spin' ? (loop ? t : t * 0.3) : 0;
+    const base = layerXform(i, count, b, W, H, twist);
     let s = base.s, x = base.x, y = base.y, rot = base.rot;
     const ph = i * 0.6;
-    if (anim.type === 'drift') { x += Math.cos(p + ph) * W * 0.10; y += Math.sin(p + ph) * H * 0.10; rot += Math.sin(p + ph) * 14; }
-    else if (anim.type === 'pulse') { s *= 1 + 0.25 * Math.sin(p + ph); }
-    else if (anim.type === 'swarm') { const rr = 30 + i * 2; x += Math.cos(p + ph) * rr; y += Math.sin(p + ph) * rr; rot += Math.sin(2 * p + ph) * 26; }
-    else if (anim.type === 'spin') { rot += (p / TAU) * 360; }
-    else if (anim.type === 'sweep') { const k = 1 + Math.sin(p) * 0.8; x = cx + (x - cx) * k; y = cy + (y - cy) * k; }
+    if (anim.type === 'drift') {
+      if (loop) { x += Math.cos(t + ph) * W * 0.10; y += Math.sin(t + ph) * H * 0.10; rot += Math.sin(t + ph) * 14; }
+      else { x += Math.cos(t * 0.5 + ph) * W * 0.10; y += Math.sin(t * 0.4 + ph * 1.3) * H * 0.10; rot += t * 8; }
+    } else if (anim.type === 'pulse') {
+      s *= 1 + 0.25 * Math.sin(t + ph);
+    } else if (anim.type === 'swarm') {
+      const rr = 30 + i * 2;
+      if (loop) { x += Math.cos(t + ph) * rr; y += Math.sin(t + ph) * rr; rot += Math.sin(2 * t + ph) * 26; }
+      else { x += Math.cos(t * 0.7 + ph) * rr; y += Math.sin(t * 0.9 + ph) * rr; rot += t * 20; }
+    } else if (anim.type === 'spin') {
+      rot += loop ? (t / TAU) * 360 : t * 30;
+    } else if (anim.type === 'sweep') {
+      if (loop) { const k = 1 + Math.sin(t) * 0.8; x = cx + (x - cx) * k; y = cy + (y - cy) * k; }
+      else { const k = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 0.6)); x = cx + (x - cx) * k * 2; y = cy + (y - cy) * k * 2; }
+    }
     const w = b.w * s, h = b.h * s;
     if (nearClipped(w, h, W, H)) continue;
     blit(b, x - w / 2, y - h / 2, w, h, { alpha: L.opacity, blend, rot, tint: tintFor(i) });
@@ -718,8 +733,9 @@ function startLoopRecord() {
     const btn = document.getElementById('btn-rec'); if (btn) { btn.classList.remove('on'); btn.textContent = '⏺'; }
     flash('saved webm');
   };
-  animT = 0; animPaused = false;     // start at a clean loop origin
-  recWatch = true;
+  animPaused = false;
+  if (anim.loop) { animT = 0; recWatch = true; }   // perfect loop: one period, auto-stop
+  else { recWatch = false; }                        // free clip: stop on re-click
   recorder.start();
   const btn = document.getElementById('btn-rec'); if (btn) { btn.classList.add('on'); btn.textContent = '⏹'; }
 }
@@ -729,6 +745,12 @@ function toggleTint() {
   document.getElementById('btn-tint').classList.toggle('on', tint.on);
   document.body.classList.toggle('tint-on', tint.on);
   draw(); persist();
+}
+
+function toggleAnimLoop() {
+  anim.loop = !anim.loop;
+  document.getElementById('btn-loop').classList.toggle('on', anim.loop);
+  persist();
 }
 
 // ---- registration marks ----
@@ -975,6 +997,7 @@ function syncUI() {
   const t2 = document.getElementById('T-c2'); if (t2) t2.value = tint.c2;
   document.getElementById('btn-tint').classList.toggle('on', tint.on);
   document.body.classList.toggle('tint-on', tint.on);
+  document.getElementById('btn-loop').classList.toggle('on', anim.loop);
   fillSelect('paper-sel', Object.keys(PAPERS), paper, k => PAPERS[k].label);
   fillSelect('L-blend', BLENDS, layer.blend, v => BLEND_LABEL[v]);
   fillSelect('L-arrange', ARRANGES, layer.arrange);
