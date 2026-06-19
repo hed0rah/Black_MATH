@@ -290,7 +290,7 @@ const PAPERS = {
 const BLENDS = ['darken','multiply','source-over','screen','lighten'];
 const BLEND_LABEL = { 'darken':'darken','multiply':'multiply','source-over':'normal','screen':'screen','lighten':'lighten' };
 const ANIM_TYPES = ['drift','swarm','wave','gravity','explode','orbit','sweep','spin','pulse','breathe','grow','accrete'];
-const ARRANGES = ['linear','radial','scatter'];
+const ARRANGES = ['linear','radial','scatter','spiral'];
 
 // ---- presentation state (persisted) ----
 let mode        = 'document';   // document | tile | columns | overlap | poster | animate
@@ -312,6 +312,8 @@ let overprint   = { on: false, marks: true, offX: 0, offY: 0 };
 let viewport    = { zoom: 1, panX: 0, panY: 0 };   // camera over the whole composition
 let tint        = { on: false, c1: '#d83a2b', c2: '#1f6fb2', amount: 0.25 };
 let printCount  = 0;                               // prints sent this session
+let printing    = false;
+window.onafterprint = () => { printing = false; };
 
 // ---- compositor scratch ----
 let cssW = 0, cssH = 0;          // on-screen sheet size in css px
@@ -643,6 +645,13 @@ function layerXform(i, count, b, W, H, twist) {
     x = cx + jrand(i * 5 + 1) * W * 0.28 + jx;
     y = cy + jrand(i * 5 + 2) * H * 0.28 + jy;
     rot = jrand(i * 5) * (L.rot || 40) + jr;
+  } else if (L.arrange === 'spiral') {
+    const turns = 1 + L.angle / 30; // angle slider → ~1-7 turns
+    const theta = (i / Math.max(1, count - 1)) * turns * Math.PI * 2;
+    const rad = (theta / (turns * Math.PI * 2)) * (L.spread / 100) * Math.min(W, H);
+    x = cx + Math.cos(theta) * rad + jx;
+    y = cy + Math.sin(theta) * rad + jy;
+    rot = theta * 180 / Math.PI + L.rot + jr;
   } else { // linear
     const a = L.angle * Math.PI / 180;
     const dist = (i - (count - 1) / 2) * (L.spread / 100) * Math.min(W, H);
@@ -1667,6 +1676,8 @@ function setPageStyle(win, hin) {
   s.textContent = '@page { size: ' + win.toFixed(3) + 'in ' + hin.toFixed(3) + 'in; margin: 0; }';
 }
 function printView() {
+  if (printing) return;
+  printing = true;
   const { win, hin } = paperDims();
   const dpi = thermal ? 203 : 300;
   const pc = rasterSheet(dpi);
