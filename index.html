@@ -472,6 +472,7 @@ function layoutSheet() {
 
 function resizeCanvas() {
   const { sw, sh } = layoutSheet();
+  if (Math.round(sw * DPR) === canvas.width && Math.round(sh * DPR) === canvas.height) return;
   cssW = sw; cssH = sh;
   canvas.style.width = sw + 'px';
   canvas.style.height = sh + 'px';
@@ -675,7 +676,7 @@ function drawOverlap(blocks, W, H) {
 }
 
 // ---- animation : motion variants, current frame is what prints ----
-let animT = 0, animRAF = null, animPaused = false;
+let animT = 0, animRAF = null, animPaused = false, animLast = 0;
 // two regimes. loop on: every motion is 2pi-periodic in animT, so it seams into
 // a perfect loop and record captures one period. loop off (default): mixed
 // frequencies + unbounded rotation give long, non-repeating evolving motion.
@@ -685,7 +686,8 @@ let animT = 0, animRAF = null, animPaused = false;
 function drawAnimate(blocks, W, H) {
   const L = layer, t = animT, cx = W / 2, cy = H / 2, blend = adjBlend(L.blend);
   const loop = anim.loop, TAU = Math.PI * 2;
-  const has = m => anim.motions.indexOf(m) !== -1;
+  const hasSet = new Set(anim.motions);
+  const has = m => hasSet.has(m);
   let count = L.count;
   if (has('accrete')) count = loop
     ? Math.max(1, Math.round((0.5 - 0.5 * Math.cos(t)) * L.count))
@@ -735,9 +737,13 @@ function drawAnimate(blocks, W, H) {
     blit(b, x - w / 2, y - h / 2, w, h, { alpha: L.opacity, blend, rot, tint: tintFor(i) });
   }
 }
-function animLoop() {
+function animLoop(now = 0) {
   if (mode !== 'animate') { animRAF = null; if (recorder) recorder.stop(); return; }
-  if (!animPaused) animT += anim.speed * 0.016;
+  if (!animPaused) {
+    const dt = animLast > 0 ? Math.min(0.05, (now - animLast) / 1000) : 0.016;
+    animT += anim.speed * dt;
+  }
+  animLast = now;
   draw();
   if (recWatch && animT >= Math.PI * 2) { recWatch = false; if (recorder) recorder.stop(); }
   animRAF = requestAnimationFrame(animLoop);
